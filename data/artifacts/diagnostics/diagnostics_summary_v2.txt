@@ -1,0 +1,4 @@
+Total Demand (kg): 44822.83
+Total Supply (kg): 67234.25
+Ratio: 1.500
+Orders > 2000.0kg: 0.00%
