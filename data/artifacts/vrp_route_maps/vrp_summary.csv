@@ -1,2 +1,2 @@
-Role,Routes_Count,Distance_KM,Load_KG,Cost_USD
-Total Network,3,776.832,30033,2269.6222000000002
+Cost_USD,Crossdock_Ready_Time,Is_Next_Day
+4740.0576,5:30,False

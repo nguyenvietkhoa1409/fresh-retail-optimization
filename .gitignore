@@ -1,0 +1,33 @@
+# Python internals
+__pycache__/
+*.py[cod]
+*.so
+
+# Virtual Environment
+venv/
+env/
+.env
+
+# IDE settings
+.vscode/
+.idea/
+
+# Logs
+*.log
+cbc_procure.log
+
+# Large Data & Cache (IMPORTANT)
+data/hf_cache/
+data/raw/
+
+# Generated Artifacts (Optional: Keep report images, ignore heavy data)
+# Uncomment the lines below if you DON'T want to upload generated csv/parquet
+# data/artifacts/part1/
+# data/artifacts/part2/
+# data/artifacts/forecasting/
+# data/artifacts/procurement/
+# data/artifacts/vrp_route_maps/
+# data/artifacts/diagnostics/
+
+# Keep the Analysis Report images (We want to show these on GitHub!)
+!data/artifacts/analysis_report/

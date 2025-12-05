@@ -1,7 +1,6 @@
 # config/settings.py
 import os
 
-# --- PATH SETUP ---
 BASE_DIR_SETUP = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 HF_CACHE_DIR = os.path.join(BASE_DIR_SETUP, "data", "hf_cache")
 os.makedirs(HF_CACHE_DIR, exist_ok=True)
@@ -12,127 +11,103 @@ class ProjectConfig:
     BASE_DIR = BASE_DIR_SETUP
     ARTIFACTS_DIR = os.path.join(BASE_DIR, "data", "artifacts", "part1")
     
-    # --- Global ---
     SEED = 2025
     HF_DATASET = "Dingdong-Inc/FreshRetailNet-50K"
     HOURS = list(range(6, 22))
     KEEP_SUBSET = True
     VOLUME_SHARE = 0.50
-    PAIR_LIMIT = 1200
+    PAIR_LIMIT = 200 
     
-    # --- Coverage ---
-    COV_MIN_DAYS = 90
-    COV_MIN_WEEKS = 8
-    COV_MIN_NONOOS = 60
-    COV_MIN_PROMO = 30
-    COV_VERBOSE = True
-    
-    # --- Economics ---
+    # --- ECONOMICS (REVISED FOR TRADEOFF) ---
     ECONOMICS_MODE = "proxy"
-    CO_FALLBACK = 1.0
-    TAU_BY_OOS = [(0.00, 0.10, 0.70), (0.10, 0.30, 0.75), (0.30, 0.50, 0.82), (0.50, 1.01, 0.90)]
+    # High holding cost (0.5% daily) to punish U=5 (Hoarding)
+    DAILY_HOLDING_RATE_PCT = 0.5 
     
-    # --- Synthetic Data ---
+    # [RESTORED] Missing config for Inventory Policy
+    # Map Out-of-Stock rate to Target Service Level (Tau)
+    # (Low OOS -> High Service Target)
+    TAU_BY_OOS = [(0.00, 0.10, 0.95), (0.10, 0.30, 0.85), (0.30, 0.50, 0.75), (0.50, 1.01, 0.60)]
+    
     CENTER_LAT = 31.2304
     CENTER_LON = 121.4737
     STORE_RADIUS_KM = (1, 15)
-    SPEED_KMPH = 35.0
-    N_SUPPLIERS = 25
-    SUPPLIER_RINGS = [(5, 20, 50), (10, 50, 150), (10, 150, 300)]
+    SPEED_KMPH = 35.0 
+    DRIVING_HOURS_PER_DAY = 10.0
+
     
-    # Products (Base Params)
+    # [High Contrast Zones]
+    SUPPLIER_ZONES = [
+        (2, 5, 50, 1.60, 3.0, "Wholesaler_Near"),  # Very Expensive, Old
+        (2, 50, 150, 1.00, 1.0, "Distributor_Mid"), 
+        (2, 150, 400, 0.40, 0.0, "Farm_Far")       # Very Cheap, Fresh
+    ]
+    
     PRODUCT_CATEGORIES = [
         (101, 1, "Fresh Strawberries", 0.40, 0.0018),
         (102, 1, "Fresh Blueberries", 0.38, 0.0016),
         (201, 2, "Whole Milk", 0.15, 0.0010),
         (202, 2, "Eggs", 0.12, 0.0014),
     ]
-    SHELF_LIFE_BY_CAT = {1: 5, 2: 10}
+    SHELF_LIFE_BY_CAT = {1: 7, 2: 12} 
     PRICE_RANGE_BY_PRODUCT = {101: (4.5, 7.0), 102: (6.0, 9.0), 201: (1.1, 1.6), 202: (1.8, 3.0)}
     
-    # --- (3) INCREASE HOLDING COST ---
-    # Multiplier to simulate High Risk/High Opportunity Cost of Capital for Fresh Food
     HOLDING_COST_MULTIPLIER = 5.0 
-
-    # --- (1) ADJUST DEMAND SCALE (20x) ---
-    # "Goldilocks" Zone: Big enough for trucks, small enough that fixed costs matter.
-    DEMAND_RANGE_BY_PRODUCT = {
-        101: (40, 160),   
-        102: (40, 140),   
-        201: (160, 400),  
-        202: (100, 300)   
-    }
+    DEMAND_RANGE_BY_PRODUCT = {101: (40, 160), 102: (40, 140), 201: (160, 400), 202: (100, 300)}
     
-    SUPPLIERS_PER_CAT_MAX = 10
-    ELAPSED_RANGE_BY_CAT = {1: (0, 2), 2: (0, 4)}
-    VEHICLES = [("LightVan", 1000, 8.0, 45.0, 0.85), ("MediumTruck", 2000, 16.0, 80.0, 1.10)]
+    STORE_OPEN_WINDOW = (360, 600)    
+    SUPPLIER_OPEN_WINDOW = (420, 960) 
+    WAREHOUSE_WINDOW = (240, 1560)    
+    
+    SERVICE_TIME_STORE_MINS = 20
+    SERVICE_TIME_SUPPLIER_MINS = 45
+    SERVICE_TIME_CROSSDOCK_MINS = 90
 
-    # --- Part 2 & 3 ---
     OUT_DIR_PART2 = os.path.join(BASE_DIR, "data", "artifacts", "part2")
-    FLAG_STOCKOUT_VAL = 1
-    KS_THR_HARD = 0.20
-    KS_THR_SOFT = 0.65
-    MIN_WEEKS_FOR_L1 = 2
-    MIN_WEEKS_KEY = 1    
-    MIN_DAYS_KEY = 6
-    SHRINK_K_L1 = 4
-    SHRINK_K_L2 = 12
-    CDF_MIN_CLIP = 0.25
-    USE_PROMO_KEY = True
-    USE_EVENT_KEY = True
-    HOURLY_FLOOR_PCTL = 5
-    RECENSOR_SAMPLE_N = 5000
-    RECENSOR_PEAK_Q = 0.75
-
     OUT_DIR_FORECAST = os.path.join(BASE_DIR, "data", "artifacts", "forecasting", "fixed")
-    SEQ_LEN = 28
-    HORIZON = 7
-    MAX_PAIRS = 1000
-    MAX_SAMPLES = 200_000
-    MIN_DAYS_PAIR = 90
-    LGB_PARAMS = {"objective": "regression", "metric": "rmse", "learning_rate": 0.05, "num_leaves": 31, "min_data_in_leaf": 200, "lambda_l1": 1.0, "verbosity": -1, "seed": 2025, "device": "cpu"}
-
-    # --- Part 4: Inventory ---
     OUT_DIR_DIAGNOSTICS = os.path.join(BASE_DIR, "data", "artifacts", "diagnostics")
-    TARGET_SUPPLY_DEMAND_RATIO = 1.5
+    
+    TARGET_SUPPLY_DEMAND_RATIO = 2.0 
     MOQ_RANGE_UNITS = (1, 8)
     UNIT_WEIGHT = {101: 0.25, 102: 0.125, 201: 1.0, 202: 0.06}
-    REVIEW_PERIOD_DAYS = 7.0
     MIN_STD_FRACTION = 0.10
-    VEHICLES_CHECK = [("LightVan", 1000.0), ("MediumTruck", 2000.0)]
-
-    # --- Part 5: Procurement ---
+    
     OUT_DIR_PROCUREMENT = os.path.join(BASE_DIR, "data", "artifacts", "procurement")
     PROCURE_REVIEW_DAYS = 7.0
-    SERVICE_LEVEL = 0.98
+    SERVICE_LEVEL = 0.95 
     SHORTAGE_COST = 500.0
     
-    # Fixed Cost: $80 is roughly 8-10% of a typical 20x order. Healthy balance.
-    FIXED_ORDER_COST = 80.0 
+    # [CRITICAL FIX] Drastically reduce Fixed Cost so U=2 is viable
+    FIXED_ORDER_COST = 5.0 
     
-    # Transport: High to ensure VRP efficiency matters.
-    TRANSPORT_COST_PER_KG_KM = 0.04 
-    
+    TRANSPORT_COST_PER_KG_KM = 0.015 
     MAX_SOLVE_TIME_S = 900
     GAP_REL = 0.02
     ROUND_Q_TO_INT = True
     ALLOW_SHORTAGE = True
     VERBOSE_SOLVER = True
-
-    # --- Part 6: Logistics VRP ---
+    
     OUT_DIR_LOGISTICS = os.path.join(BASE_DIR, "data", "artifacts", "vrp_route_maps")
-    
-    VRP_MAX_ROUTE_DISTANCE_KM = 400
-    
-    # FLEET MIX: Optimized for 20x scale (100kg - 2000kg loads)
-    VEHICLE_FLEET_DEFINITIONS = [
-        {"type": "Small",  "capacity": 1000,   "fixed_cost": 80.0,  "cost_km": 0.8, "count": 25},
-        {"type": "Medium", "capacity": 3000,   "fixed_cost": 120.0, "cost_km": 1.2, "count": 20},
-        {"type": "Large",  "capacity": 8000,   "fixed_cost": 180.0, "cost_km": 1.6, "count": 10},
-        {"type": "Extra",  "capacity": 15000,  "fixed_cost": 250.0, "cost_km": 2.2, "count": 5}
-    ]
-    
+    VRP_MAX_ROUTE_DISTANCE_KM = 600 
     VRP_SEARCH_TIME_LIMIT_SEC = 60
+    VEHICLE_FLEET_DEFINITIONS = [
+        {"type": "Small",  "capacity": 1000,   "fixed_cost": 300.0,  "cost_km": 0.5, "count": 15},
+        {"type": "Medium", "capacity": 3000,   "fixed_cost": 500.0, "cost_km": 0.8, "count": 10},
+        {"type": "Large",  "capacity": 8000,   "fixed_cost": 900.0, "cost_km": 1.2, "count": 5},
+    ]
+    VEHICLES_CHECK = [("Small", 1000.0), ("Medium", 3000.0), ("Large", 8000.0)]
 
-    # --- Part 7: Reporting ---
+    FRESHNESS_PENALTY_PER_DAY = 0.05 
     OUT_DIR_ANALYSIS = os.path.join(BASE_DIR, "data", "artifacts", "analysis_report")
+    
+    SEQ_LEN = 28; HORIZON = 7
+    MAX_PAIRS = 1000; MIN_DAYS_PAIR = 90
+    LGB_PARAMS = {"objective": "regression", "metric": "rmse", "verbosity": -1, "seed": 2025}
+
+    # [SCENARIO MATRIX]
+    STRATEGIC_SCENARIOS = [
+        {"name": "Hyper-Fresh", "p": 2, "u": 2, "desc": "High Cost, Max Freshness"},
+        {"name": "Local-Batch", "p": 2, "u": 5, "desc": "Local Sourcing, Min Logistics"},
+        {"name": "Balanced", "p": 3, "u": 3, "desc": "Mid-range Sourcing"},
+        {"name": "Bulk-Farm", "p": 4, "u": 3, "desc": "Farm Sourcing, Optimized Logistics"},
+        {"name": "JIT-Farm", "p": 5, "u": 2, "desc": "Farm Sourcing, High Frequency"}
+    ]

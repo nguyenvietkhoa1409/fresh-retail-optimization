@@ -48,26 +48,17 @@ def run_pipeline():
         print_sep("STEP 4: INVENTORY")
         InventoryPlanner().run()
 
-        # 5. Procurement (Static Baseline)
-        print_sep("STEP 5: PROCUREMENT (STATIC)")
-        ProcurementOptimizer().run()
-
-        # 6. Logistics (Static Baseline)
-        print_sep("STEP 6: LOGISTICS (STATIC)")
-        LogisticsManager().run()
-
-        # 6.5 Integrated
+        # 5. Integrated
         print_sep("STEP 6.5: INTEGRATED OPTIMIZATION")
         IntegratedSolver().run()
-
-        # 7. Sensitivity (Scientific Bonus)
-        print_sep("STEP 7: SENSITIVITY ANALYSIS")
-        # Runs 18 iterations, might take 5-10 mins
-        SensitivityAnalyzer().run()
-
-        # 8. Reporting
+        
+        # 6. Reporting
         print_sep("STEP 8: REPORTING")
         PipelineReporter().run()
+
+        # 7. Sensitivity test
+        print_sep("STEP 7: SENSITIVITY ANALYSIS")
+        SensitivityAnalyzer(fast_mode=True).run()
 
         dur = (time.time() - t0) / 60
         print(f"\n✅ ALL SYSTEMS GO. Duration: {dur:.1f} min.")

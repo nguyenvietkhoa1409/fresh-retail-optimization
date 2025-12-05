@@ -1,0 +1,15 @@
+Dimension,Value,Winning_Strategy,Winning_P,Winning_U,Min_Total_Cost,Runtime_s
+Logistics Cost,0.005,Balanced,3,3,29516.07,20.62099720002152
+Logistics Cost,0.01,Bulk-Farm,4,3,28848.9,20.79853010000079
+Logistics Cost,0.02,Bulk-Farm,4,3,29743.4,23.14125650000642
+Logistics Cost,0.04,Local-Batch,2,5,30601.66,24.636776700004702
+Logistics Cost,0.08,Local-Batch,2,5,30800.61,22.79018979999819
+Holding Risk,0.1,Bulk-Farm,4,3,29657.92,30.25511880000704
+Holding Risk,0.25,Bulk-Farm,4,3,29725.4,30.82175480001024
+Holding Risk,0.5,Bulk-Farm,4,3,29837.87,29.363945599994622
+Holding Risk,1.0,Bulk-Farm,4,3,30062.8,30.19559859999572
+Holding Risk,2.0,Bulk-Farm,4,3,30512.65,29.902097200014396
+Fixed Overhead,5.0,Bulk-Farm,4,3,29837.87,28.462390799977584
+Fixed Overhead,50.0,Local-Batch,2,5,32270.15,28.846891900000628
+Fixed Overhead,200.0,Local-Batch,2,5,37472.12,28.13781429998926
+Fixed Overhead,500.0,Local-Batch,2,5,49263.85,31.584793399990303

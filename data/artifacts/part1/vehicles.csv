@@ -1,3 +1,0 @@
-type,capacity_kg,var_cost_per_km,fixed_cost,cost_per_hour
-LightVan,1000,8.0,45.0,0.85
-MediumTruck,2000,16.0,80.0,1.1
