@@ -7,10 +7,8 @@ from src.utils.geo import GeoUtils
 
 class SyntheticGenerator:
     """
-    Class chịu trách nhiệm sinh dữ liệu giả lập logistic:
-    - Products, Suppliers, Stores, Distances
-    - Supplier-Product Matrix (giá, lead time, shelf life)
-    - Vehicles
+    Class chịu trách nhiệm sinh dữ liệu giả lập logistic.
+    Updated: Robust config handling for Vehicles and Suppliers.
     """
     
     def __init__(self):
@@ -21,22 +19,11 @@ class SyntheticGenerator:
         """Chạy toàn bộ quy trình sinh dữ liệu."""
         print("\n[Generator] Starting synthetic data generation...")
         
-        # 1. Products
         self._gen_products()
-        
-        # 2. Suppliers
         suppliers_df = self._gen_suppliers()
-        
-        # 3. Stores (mapped to real IDs)
         self._gen_stores(unique_store_ids)
-        
-        # 4. Distance Matrix (Warehouse-Supplier)
         self._gen_dist_matrix(suppliers_df)
-        
-        # 5. Supplier-Product Matrix (Complex Logic)
         self._gen_supplier_product_matrix(suppliers_df)
-        
-        # 6. Vehicles
         self._gen_vehicles()
         
         print(f"[Generator] All artifacts saved to {Cfg.ARTIFACTS_DIR}")
@@ -51,8 +38,22 @@ class SyntheticGenerator:
     def _gen_suppliers(self):
         suppliers = []
         sid = 1
-        # Sinh supplier theo các vòng tròn bán kính khác nhau (Supplier Rings)
-        for count, rmin, rmax in Cfg.SUPPLIER_RINGS:
+        
+        # 1. Robust Config Check
+        if hasattr(Cfg, 'SUPPLIER_ZONES'):
+            config_source = Cfg.SUPPLIER_ZONES
+        elif hasattr(Cfg, 'SUPPLIER_RINGS'):
+            config_source = Cfg.SUPPLIER_RINGS
+        else:
+            config_source = [(5, 2, 10), (10, 10, 40), (5, 40, 120)] # Fallback
+
+        for item in config_source:
+            # Handle tuples of varying lengths (3 or 6)
+            if len(item) >= 3:
+                count, rmin, rmax = item[0], item[1], item[2]
+            else:
+                continue
+
             for _ in range(count):
                 d = float(self.rng.uniform(rmin, rmax))
                 b = float(self.rng.uniform(0, 360))
@@ -60,8 +61,11 @@ class SyntheticGenerator:
                 suppliers.append((sid, round(lat, 6), round(lon, 6)))
                 sid += 1
         
-        # Cắt bớt nếu vượt quá cấu hình tối đa
-        suppliers = suppliers[:Cfg.N_SUPPLIERS]
+        # 2. Safety Cap (Only if N_SUPPLIERS exists)
+        limit_n = getattr(Cfg, 'N_SUPPLIERS', None)
+        if limit_n is not None:
+            suppliers = suppliers[:limit_n]
+        
         df = pd.DataFrame(suppliers, columns=["supplier_id", "lat", "lon"])
         out_path = os.path.join(Cfg.ARTIFACTS_DIR, "suppliers.csv")
         df.to_csv(out_path, index=False)
@@ -69,8 +73,9 @@ class SyntheticGenerator:
         return df
 
     def _gen_stores(self, store_ids):
-        # Lấy tối đa 20 store duy nhất từ dataset thật để simulate logistics cho nhẹ
-        unique = store_ids[:20] 
+        limit_stores = 20 
+        unique = store_ids[:limit_stores] 
+        
         stores = []
         for rid, store_id in enumerate(unique, 1):
             d = float(self.rng.uniform(*Cfg.STORE_RADIUS_KM))
@@ -96,38 +101,33 @@ class SyntheticGenerator:
         print(f"  -> Generated dist_ws.csv")
 
     def _gen_supplier_product_matrix(self, suppliers_df):
-        """
-        Logic phức tạp: Phân chia supplier thành các pool cho từng category,
-        gán giá và thời gian shelf-life đã trôi qua (elapsed days).
-        """
         sup_ids = suppliers_df["supplier_id"].tolist()
+        if not sup_ids: return
         self.rng.shuffle(sup_ids)
         
-        k = Cfg.SUPPLIERS_PER_CAT_MAX
+        # Use getattr for safety
+        k = getattr(Cfg, 'SUPPLIERS_PER_CAT_MAX', 6)
         
-        # Tạo 2 pool supplier overlap nhau
         pool_c1 = sorted(sup_ids[:min(k, len(sup_ids))])
         start_c2 = max(0, len(sup_ids)//4)
         pool_c2 = sorted(sup_ids[start_c2 : start_c2 + min(k, len(sup_ids))])
         
         sp_rows = []
-        # Duyệt qua từng sản phẩm định nghĩa trong Config
-        df_prods = pd.DataFrame(Cfg.PRODUCT_CATEGORIES, 
-                                columns=["product_id", "category_id", "name", "h", "v"])
-        
-        for r in df_prods.itertuples(index=False):
-            prod_id = int(r.product_id)
-            cat_id = int(r.category_id)
+        for p in Cfg.PRODUCT_CATEGORIES:
+            prod_id = int(p[0])
+            cat_id = int(p[1])
             
-            # Lấy range giá và range elapsed days
             lo, hi = Cfg.PRICE_RANGE_BY_PRODUCT.get(prod_id, (1.0, 10.0))
-            el_lo, el_hi = Cfg.ELAPSED_RANGE_BY_CAT[cat_id]
             
-            # Chọn pool dựa trên category
+            # Fix: Access ELAPSED_RANGE safely
+            elapsed_ranges = getattr(Cfg, 'ELAPSED_RANGE_BY_CAT', {1: (0,2), 2: (0,4)})
+            el_lo, el_hi = elapsed_ranges.get(cat_id, (0, 2))
+            
             pool = pool_c1 if cat_id == 1 else pool_c2
+            if not pool: pool = sup_ids
             
-            # Chọn ngẫu nhiên số lượng supplier cung cấp sp này (từ 3 đến 6)
             num_sup = int(self.rng.integers(3, min(6, len(pool)) + 1))
+            num_sup = min(num_sup, len(pool))
             chosen = self.rng.choice(pool, size=num_sup, replace=False)
             
             for sid in sorted(chosen):
@@ -144,7 +144,41 @@ class SyntheticGenerator:
         print(f"  -> Generated supplier_product.csv ({len(df_sp)} rows)")
 
     def _gen_vehicles(self):
-        df = pd.DataFrame(Cfg.VEHICLES, columns=["type", "capacity_kg", "var_cost_per_km", "fixed_cost", "cost_per_hour"])
+        # --- FIX: Robust check for VEHICLES vs VEHICLE_FLEET_DEFINITIONS ---
+        rows = []
+        
+        # 1. Priority: Check for new detailed Fleet Defs (Strategy B)
+        if hasattr(Cfg, 'VEHICLE_FLEET_DEFINITIONS'):
+            vehs = Cfg.VEHICLE_FLEET_DEFINITIONS
+            for v in vehs:
+                # Map dict to CSV columns
+                rows.append({
+                    "type": v.get('type', 'Truck'),
+                    "capacity_kg": v.get('capacity', 1000),
+                    "var_cost_per_km": v.get('cost_km', 1.0),
+                    "fixed_cost": v.get('fixed_cost', 100),
+                    "cost_per_hour": 0.0 # Not used in VRP currently
+                })
+                
+        # 2. Fallback: Legacy VEHICLES tuple list
+        elif hasattr(Cfg, 'VEHICLES'):
+            vehs = Cfg.VEHICLES
+            for v in vehs:
+                # tuple: (Type, Cap, CostKM, Fixed, CostHour)
+                if isinstance(v, tuple) and len(v) >= 4:
+                    rows.append({
+                        "type": v[0],
+                        "capacity_kg": v[1],
+                        "var_cost_per_km": v[2],
+                        "fixed_cost": v[3],
+                        "cost_per_hour": v[4] if len(v)>4 else 0.0
+                    })
+        
+        # 3. Ultimate Fallback
+        if not rows:
+             rows = [{"type": "Default", "capacity_kg": 1000, "var_cost_per_km": 1.0, "fixed_cost": 100.0, "cost_per_hour": 0.0}]
+             
+        df = pd.DataFrame(rows)
         out_path = os.path.join(Cfg.ARTIFACTS_DIR, "vehicles.csv")
         df.to_csv(out_path, index=False)
         print(f"  -> Generated vehicles.csv")

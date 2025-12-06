@@ -1,0 +1,5 @@
+product_id,category_id,name,holding_cost_per_kg_day,volume_m3_per_kg
+101,1,Fresh Strawberries,0.4,0.0018
+102,1,Fresh Blueberries,0.38,0.0016
+201,2,Whole Milk,0.15,0.001
+202,2,Eggs,0.12,0.0014

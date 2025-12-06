@@ -1,0 +1,4 @@
+type,capacity_kg,var_cost_per_km,fixed_cost,cost_per_hour
+Small,1000,0.5,300.0,0.0
+Medium,3000,0.8,500.0,0.0
+Large,8000,1.2,900.0,0.0
