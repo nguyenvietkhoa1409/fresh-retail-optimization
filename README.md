@@ -60,5 +60,11 @@ fresh-retail-optimization/
 ├── 1.main_data.py              # Script chạy bước Data Pipeline
 ├── 2.main_demand.py            # Script chạy bước Reconstruction
 ├── 3.main_forecasting.py       # Script chạy bước Forecasting
-├──
+├── 4.main_inventory.py         # Script chạy bước Inventory Planning
+├── 5.main_integrated.py        # Script chạy bước Tối ưu hóa Tích hợp
+├── 6.report.py                 # Script sinh báo cáo cuối cùng
+├── 7.sensitivity_test.py       # Script chạy phân tích độ nhạy
+├── run_all.py                  # Script chạy toàn bộ quy trình End-to-End
+├── requirements.txt            # Danh sách thư viện phụ thuộc
+└── README.md                   # Tài liệu hướng dẫn
 Dự án được phát triển bởi Nguyễn Viết Khoa & Ngô Tấn Phong - 2025.
