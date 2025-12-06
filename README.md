@@ -61,3 +61,4 @@ fresh-retail-optimization/
 ├── 2.main_demand.py            # Script chạy bước Reconstruction
 ├── 3.main_forecasting.py       # Script chạy bước Forecasting
 ├──
+Dự án được phát triển bởi Nguyễn Viết Khoa & Ngô Tấn Phong - 2025.
