@@ -1,7 +1,6 @@
 {
-  "Total_Products_Evaluated": 35,
-  "Overall_Mean_MAPE": 15.965714285714284,
-  "Overall_Mean_RMSE": 0.8085714285714286,
-  "Best_Product_MAPE": 8.5,
-  "Worst_Product_MAPE": 30.2
+  "Total_Products_Evaluated": 514,
+  "Overall_Global_WAPE": 27.378341719076733,
+  "Overall_Mean_MAPE": 34.23073929961089,
+  "Overall_Mean_RMSE": 0.3474513618677043
 }

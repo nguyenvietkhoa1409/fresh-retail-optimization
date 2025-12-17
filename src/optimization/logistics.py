@@ -208,7 +208,7 @@ class LogisticsManager:
         if not os.path.exists(agg_path): return
         df_agg = pd.read_csv(agg_path)
         
-        df_sup = pd.read_csv(os.path.join(Cfg.ARTIFACTS_DIR, "suppliers_harmonized_v2.csv"))
+        df_sup = pd.read_csv(os.path.join(Cfg.ARTIFACTS_DIR, "suppliers.csv"))
         df_store = pd.read_parquet(os.path.join(Cfg.ARTIFACTS_DIR, "unified_for_procurement.parquet"))
         
         # INBOUND
@@ -254,3 +254,6 @@ class LogisticsManager:
             'Crossdock_Ready_Time': f"{int(out_start//60)}:{int(out_start%60):02d}",
             'Is_Next_Day': is_shifted_next_day
         }]).to_csv(os.path.join(self.out_dir, "vrp_summary.csv"), index=False)
+        
+        # [FIX] Return routes data for Feedback Loop
+        return all_r

@@ -19,15 +19,16 @@ class ProjectConfig:
     OUT_DIR_LOGISTICS = os.path.join(BASE_DIR, "data", "artifacts", "vrp_route_maps")
     OUT_DIR_ANALYSIS = os.path.join(BASE_DIR, "data", "artifacts", "analysis_report")
 
-    # --- GLOBAL ---
+    # --- GLOBAL --- 
     SEED = 2025
     HF_DATASET = "Dingdong-Inc/FreshRetailNet-50K"
     HOURS = list(range(6, 22))
     KEEP_SUBSET = True
     VOLUME_SHARE = 0.50
     # Reduced for feasibility of local integrated optimization
-    PAIR_LIMIT = 200 
+    PAIR_LIMIT = 12500 
     CO_FALLBACK = 1.0 
+    GLOBAL_NUM_STORES = 20
     
     # --- PART 2: DEMAND RECONSTRUCTION ---
     COV_MIN_DAYS = 90
@@ -43,7 +44,7 @@ class ProjectConfig:
     MIN_DAYS_KEY = 6
     SHRINK_K_L1 = 4
     SHRINK_K_L2 = 12
-    CDF_MIN_CLIP = 0.25
+    CDF_MIN_CLIP = 0.15
     USE_PROMO_KEY = True  
     USE_EVENT_KEY = True  
     HOURLY_FLOOR_PCTL = 5
@@ -60,16 +61,15 @@ class ProjectConfig:
 
     # --- PART 4: INVENTORY PLANNING ---
     ECONOMICS_MODE = "proxy"
-    # High holding cost (0.5% daily) to punish Hoarding
-    DAILY_HOLDING_RATE_PCT = 0.5 
-    HOLDING_COST_MULTIPLIER = 5.0 
+    DAILY_HOLDING_RATE_PCT = 0.1 
+    HOLDING_COST_MULTIPLIER = 1.0 
     
     # Inventory Policy (Tau mapping)
     TAU_BY_OOS = [(0.00, 0.10, 0.95), (0.10, 0.30, 0.85), (0.30, 0.50, 0.75), (0.50, 1.01, 0.60)]
     
     # Supply Chain Params
     TARGET_SUPPLY_DEMAND_RATIO = 1.2 
-    MOQ_RANGE_UNITS = (1, 8)
+    MOQ_RANGE_UNITS = (50, 200)
     UNIT_WEIGHT = {101: 0.25, 102: 0.125, 201: 1.0, 202: 0.06}
     MIN_STD_FRACTION = 0.10
     
@@ -96,7 +96,7 @@ class ProjectConfig:
     PRICE_RANGE_BY_PRODUCT = {101: (4.5, 7.0), 102: (6.0, 9.0), 201: (1.1, 1.6), 202: (1.8, 3.0)}
     DEMAND_RANGE_BY_PRODUCT = {101: (50, 150), 102: (40, 120), 201: (200, 500), 202: (150, 400)}
     # --- [FIX] MISSING CONFIGS ADDED HERE ---
-    SUPPLIERS_PER_CAT_MAX = 10
+    SUPPLIERS_PER_CAT_MAX = 6
     ELAPSED_RANGE_BY_CAT = {1: (0, 2), 2: (0, 4)}
     # --- PART 5: PROCUREMENT OPTIMIZATION ---
     PROCURE_REVIEW_DAYS = 7.0
@@ -132,7 +132,7 @@ class ProjectConfig:
     SERVICE_TIME_CROSSDOCK_MINS = 90
 
     # --- PART 7: INTEGRATED MODEL ---
-    FRESHNESS_PENALTY_PER_DAY = 150.0 
+    FRESHNESS_PENALTY_PER_DAY = 0.05 
     
     STRATEGIC_SCENARIOS = [
         {"name": "Hyper-Fresh", "p": 2, "u": 2, "desc": "High Cost, Max Freshness"},
@@ -141,3 +141,10 @@ class ProjectConfig:
         {"name": "Bulk-Farm", "p": 4, "u": 3, "desc": "Farm Sourcing, Optimized Logistics"},
         {"name": "JIT-Farm", "p": 5, "u": 2, "desc": "Farm Sourcing, High Frequency"}
     ]
+    
+    # --- DATASET ANALYSIS CONFIG ---
+    SBC_ADI_THRESHOLD = 1.32
+    SBC_CV2_THRESHOLD = 0.49
+    INTRA_HOUR_START = 6
+    INTRA_HOUR_END = 21
+    SIMULATION_VOL_THRESHOLDS = [1, 2, 3, 5, 8, 10]
