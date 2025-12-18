@@ -57,15 +57,15 @@ Develop an integrated decision support system that minimizes total supply chain 
 
 | Layer | ID | Objective Description |
 | :--- | :--- | :--- |
-| **Demand** | **O1.1** | Reconstruct true latent demand from censored sales observations with **WAPE < 30%**. |
-| | **O1.2** | Generate multi-horizon demand forecasts (1-7 days) with horizon-specific accuracy. |
-| | **O1.3** | Quantify demand uncertainty for downstream stochastic optimization. |
-| **Supply** | **O2.1** | Design heterogeneous supplier network representing diverse sourcing strategies (local specialty, regional distributors, bulk wholesalers, farm-direct). |
-| | **O2.2** | Calibrate supplier attributes (pricing, lead times, capacities, freshness degradation) to create realistic trade-offs. |
-| **Optimization**| **O3.1** | Formulate and solve **Mixed-Integer Linear Program (MILP)** for multi-product, multi-supplier procurement under capacity, MOQ, and lead time constraints. |
-| | **O3.2** | Solve two-echelon **Vehicle Routing Problem (VRP)** with time windows for inbound and outbound distribution. |
-| | **O3.3** | Implement iterative feedback mechanism between procurement and logistics to escape local optima. |
-| **Evaluation** | **O4.1** | Establish rigorous baseline comparison framework across four categories: naive heuristics, industry practices, academic benchmarks, ablation studies. |
+| **Demand** | **1.1** | Reconstruct true latent demand from censored sales observations with **WAPE < 30%**. |
+| | **1.2** | Generate multi-horizon demand forecasts (1-7 days) with horizon-specific accuracy. |
+| | **1.3** | Quantify demand uncertainty for downstream stochastic optimization. |
+| **Supply** | **2.1** | Design heterogeneous supplier network representing diverse sourcing strategies (local specialty, regional distributors, bulk wholesalers, farm-direct). |
+| | **2.2** | Calibrate supplier attributes (pricing, lead times, capacities, freshness degradation) to create realistic trade-offs. |
+| **Optimization**| **3.1** | Formulate and solve **Mixed-Integer Linear Program (MILP)** for multi-product, multi-supplier procurement under capacity, MOQ, and lead time constraints. |
+| | **3.2** | Solve two-echelon **Vehicle Routing Problem (VRP)** with time windows for inbound and outbound distribution. |
+| | **3.3** | Implement iterative feedback mechanism between procurement and logistics to escape local optima. |
+| **Evaluation** | **4.1** | Establish rigorous baseline comparison framework across four categories: naive heuristics, industry practices, academic benchmarks, ablation studies. |
 
 ---
 
