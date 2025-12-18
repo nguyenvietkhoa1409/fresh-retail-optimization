@@ -1,47 +1,100 @@
 # Fresh Retail Supply Chain Optimization
-## End-to-End E-Procurement & Inventory Management Framework
+## Integrated E-Procurement and Inventory Optimization Framework
 
-### 1. Introduction
-
-This project addresses the complex challenges of **Freshness-Retail Supply Chains**, specifically focusing on the high perishability of goods and demand volatility. Traditional logistics models often fail to account for the degradation of fresh produce quality combined with the strict delivery windows required by retail stores.
-
-We have developed a comprehensive **E-Logistics Optimization Framework** that integrates the supply chain workflow from demand data recovery to final last-mile delivery. The system utilizes the **Freshretailness50K** dataset to simulate a realistic retail environment with a structure of **Suppliers $\rightarrow$ Center Warehouse $\rightarrow$ Stores**.
-
-**Key Objectives:**
-* Mitigate the "Censored Demand" problem (unobserved lost sales) in retail data.
-* Improve short-term demand forecasting accuracy for perishable goods.
-* Optimize procurement strategies by balancing **Cost**, **Freshness**, and **Logistics** constraints.
-* Solve the integrated Supplier Selection + Order Quantity + Vehicle Routing Problem (VRP).
+### Executive Summary
+This project presents a comprehensive end-to-end optimization framework for fresh retail supply chain management, integrating demand reconstruction, forecasting, inventory planning, procurement, and logistics optimization. The system addresses critical challenges in perishable goods management including **stockout-induced censored demand**, **multi-echelon sourcing decisions**, and **time-sensitive distribution constraints**.
 
 ---
 
-### 2. Core Modules & Technical Framework
+### 1. Problem Statement & Current Situation
+
+#### 1.1. Background
+Fresh retail supply chains face unique operational challenges distinct from traditional retail environments (Aung & Chang, 2014). The perishability of products creates a fundamental tension between **overstocking** (leading to waste) and **understocking** (leading to lost sales and customer dissatisfaction). 
+
+> *According to industry estimates, food waste in retail accounts for approximately 10-15% of purchased inventory (Mena et al., 2011), while stockouts can result in lost sales ranging from 3-4% of total revenue (Corsten & Gruen, 2003).*
+
+#### 1.2. Core Challenges
+
+**1.2.1. The Censored Demand Problem**
+Traditional demand forecasting assumes observed sales data accurately represents true customer demand. However, in fresh retail environments with frequent stockouts, observed sales are systematically biased downward—a phenomenon known as "demand censoring" (Agrawal & Smith, 1996). 
+
+Data analysis from the **FreshRetailNet-50K** dataset reveals that approximately **40-60%** of SKU-store-day observations exhibit some degree of intra-day stockout, making naive forecasting approaches fundamentally flawed.
+
+*Mathematical Formulation:*
+$$D_{observed} \leq D_{true}$$
+$$D_{true} = D_{observed} + D_{lost}$$
+*Where $D_{lost}$ represents unobserved demand during stockout periods.*
+
+**1.2.2. Multi-Objective Procurement Decisions**
+Fresh retail procurement requires simultaneous optimization across multiple conflicting objectives:
+* **Cost Minimization:** Unit prices, fixed ordering costs, transportation costs.
+* **Freshness Maximization:** Minimizing product age at delivery.
+* **Service Level:** Meeting demand with high probability (typically 95%).
+* **Operational Constraints:** Supplier capacities, Minimum Order Quantities (MOQ), Lead times.
+
+**1.2.3. Coupled Procurement-Logistics Problem**
+Traditional approaches treat procurement (supplier selection, order quantities) and logistics (vehicle routing, delivery scheduling) as sequential, independent problems. However, these decisions are fundamentally coupled:
+* Supplier location affects transportation costs and delivery timing.
+* Order consolidation impacts vehicle utilization.
+* Delivery time windows constrain sourcing options.
+
+#### 1.3. Research Gap
+Existing literature addresses these challenges in isolation:
+* *Demand reconstruction methods* (Weatherford & Pölt, 2002) focus on historical data calibration.
+* *Newsvendor models* (Silver et al., 1998) optimize single-period inventory decisions.
+* *Vehicle Routing Problems (VRP)* (Toth & Vigo, 2014) assume known demand and fixed supply points.
+
+**This work integrates these components into a unified optimization framework, explicitly modeling the interdependencies between demand uncertainty, sourcing decisions, and distribution operations.**
+
+---
+
+### 2. Project Objectives
+
+#### 2.1. Primary Objective
+Develop an integrated decision support system that minimizes total supply chain costs while maintaining service level requirements for fresh retail operations, accounting for demand censorship, perishability constraints, and operational complexities.
+
+#### 2.2. Specific Objectives
+
+| Layer | ID | Objective Description |
+| :--- | :--- | :--- |
+| **Demand** | **O1.1** | Reconstruct true latent demand from censored sales observations with **WAPE < 30%**. |
+| | **O1.2** | Generate multi-horizon demand forecasts (1-7 days) with horizon-specific accuracy. |
+| | **O1.3** | Quantify demand uncertainty for downstream stochastic optimization. |
+| **Supply** | **O2.1** | Design heterogeneous supplier network representing diverse sourcing strategies (local specialty, regional distributors, bulk wholesalers, farm-direct). |
+| | **O2.2** | Calibrate supplier attributes (pricing, lead times, capacities, freshness degradation) to create realistic trade-offs. |
+| **Optimization**| **O3.1** | Formulate and solve **Mixed-Integer Linear Program (MILP)** for multi-product, multi-supplier procurement under capacity, MOQ, and lead time constraints. |
+| | **O3.2** | Solve two-echelon **Vehicle Routing Problem (VRP)** with time windows for inbound and outbound distribution. |
+| | **O3.3** | Implement iterative feedback mechanism between procurement and logistics to escape local optima. |
+| **Evaluation** | **O4.1** | Establish rigorous baseline comparison framework across four categories: naive heuristics, industry practices, academic benchmarks, ablation studies. |
+
+---
+
+### 3. Technical Framework & Methodology
 
 The project is structured into a sequential workflow where the output of one module serves as the critical input for the next.
 
 #### Phase 1: Demand Recovery (Data Engineering)
-* **Problem:** Retail sales data often represents "sales" rather than "demand." If an item is out of stock, demand is censored.
-* **Solution:** A statistical reconstruction module estimates true demand from historical sales and inventory levels.
-* **Metric:** Mean Absolute Percentage Error (MAPE) and Weighted APE (WAPE) on reconstructed vs. synthetic ground truth.
+* **Input:** Historical sales transactions and inventory logs.
+* **Method:** Statistical reconstruction to estimate $D_{lost}$ and un-censor the data.
+* **Output:** A clean, "True Demand" dataset for training.
 
 #### Phase 2: Demand Prediction (Forecasting)
-* **Problem:** Accurate short-term forecasting (1-7 days) is critical for perishable inventory planning.
-* **Method:** A machine learning-based forecasting engine (LightGBM) trained on the reconstructed demand data.
-* **Scope:** Multi-horizon forecasting (H1 to H7) to support dynamic procurement planning.
+* **Method:** Machine Learning engine (LightGBM) with multi-horizon capability (H1-H7).
+* **Features:** Lagged features, calendar events, price elasticity, and reconstructed historical demand.
 
 #### Phase 3: Inventory Planning
-* **Function:** Determines optimal inventory levels and safety stocks based on predicted demand and perishable shelf-life constraints.
-* **Output:** Generates `Order Requirements` for the procurement phase.
+* **Function:** Determines optimal inventory levels and safety stocks.
+* **Logic:** Dynamic safety stock calculation based on forecast error variance (RMSE) and target service levels (95%).
 
 #### Phase 4: Integrated Procurement & Logistics (Optimization)
-* **The Core Engine:** This module solves the multi-objective optimization problem:
-    1.  **Supplier Selection:** Which supplier offers the best trade-off between price and freshness?
-    2.  **Order Quantity:** How much to order to meet demand without high spoilage?
-    3.  **Logistics (VRP):** Optimizing delivery routes from suppliers to the warehouse/stores using distinct strategies (e.g., Cross-docking vs. Local Sourcing).
+* **The Core Engine:** Solves the coupled problem defined in *Section 1.2.3*.
+    1.  **Supplier Selection:** Trade-off between Price vs. Freshness.
+    2.  **Order Quantity:** Optimal batch sizes respecting MOQs.
+    3.  **Logistics (VRP):** Optimizing delivery routes from Suppliers $\rightarrow$ Center Warehouse $\rightarrow$ Stores.
 
 ---
 
-### 3. Results & Evaluation
+### 4. Results & Evaluation
 
 Our framework was evaluated using a rigorous baseline comparison and sensitivity analysis. 
 
@@ -66,7 +119,7 @@ We simulated different procurement strategies to find the optimal balance betwee
 
 #### C. Comprehensive Baseline Comparison
 
-We benchmarked our proposed **Bulk-Farm** model against a wide range of baselines, divided into Operational Strategies (Naive/Industry) and Theoretical/Ablation studies.
+We benchmarked our proposed **Bulk-Farm** model against a wide range of baselines.
 
 **Table 1: Operational Baselines (Naive & Industry Standards)**
 
@@ -78,29 +131,24 @@ We benchmarked our proposed **Bulk-Farm** model against a wide range of baseline
 | Single-Tier (Local) | Industry | 58,735 | +48.0% | Restrict to local suppliers only |
 | Nearest Supplier | Naive | 61,965 | +56.1% | Always choose closest supplier (Myopic) |
 | Cheapest Price | Naive | 64,003 | +61.2% | Lowest unit price only (Ignores distance) |
-| Single-Tier (Farm) | Industry | 64,003 | +61.2% | Restrict to farm suppliers only |
-| Equal Allocation | Industry | 129,904 | +227% | Split orders among top 3 suppliers (Diversification) |
+| Equal Allocation | Industry | 129,904 | +227% | Split orders among top 3 suppliers |
 
 **Table 2: Ablation Studies & Theoretical Bounds**
 
 | Strategy Name | Category | Daily Cost ($) | Description |
 | :--- | :--- | :--- | :--- |
-| **No Fixed Costs** | Ablation | 21,760 | **Theoretical Lower Bound.** Ignoring setup/logistics fixed costs (Unrealistic). |
-| **EOQ Policy** | Academic | 22,959 | Classic Economic Order Quantity (Textbook). Ignores complex constraints. |
-| **No Capacity Limits** | Ablation | 26,756 | Assumes unlimited supplier capacity. |
-| **No Freshness Penalty**| Ablation | 37,297 | Optimization without freshness consideration (Cheaper but lower quality). |
+| **No Fixed Costs** | Ablation | 21,760 | **Theoretical Lower Bound.** Ignoring setup/logistics fixed costs. |
+| **EOQ Policy** | Academic | 22,959 | Classic Economic Order Quantity (Textbook). |
+| **No Freshness Penalty**| Ablation | 37,297 | Optimization without freshness consideration. |
 
 **Key Evaluation Insights:**
-1.  **Efficiency:** The proposed model reduces daily costs by **69.4%** compared to the worst baseline (Equal Allocation) and outperforms the closest industry standard (Regional Sourcing) by **~8.6%**.
-2.  **The "Cheapest Price" Trap:** Simply choosing the cheapest supplier (or Farm-only) results in high costs ($64k) due to inefficient logistics and high transport distances, proving that price alone is a poor indicator of total landed cost.
-3.  **Logistics Impact:** The "Nearest Supplier" strategy performs poorly ($61k) because closest suppliers often have higher unit prices, failing to offset the transport savings.
-4.  **Optimality:** Our result ($39k) is significantly higher than the theoretical lower bound ($21k - No Fixed Costs), effectively quantifying the "Price of Logistics" and operational reality in the supply chain.
+1.  **Efficiency:** The proposed model reduces daily costs by **69.4%** compared to the worst baseline and outperforms the closest industry standard (Regional Sourcing) by **~8.6%**.
+2.  **The "Cheapest Price" Trap:** Simply choosing the cheapest supplier results in high costs ($64k) due to inefficient logistics, proving that price alone is a poor indicator of total landed cost.
+3.  **Optimality:** Our result ($39k) is significantly higher than the theoretical lower bound ($21k), effectively quantifying the "Price of Logistics" and operational reality.
 
 ---
 
-### 4. Project Structure
-
-The repository is organized as follows:
+### 5. Project Structure
 
 ```text
 fresh-retail-optimization/
