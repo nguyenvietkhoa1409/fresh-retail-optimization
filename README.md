@@ -141,14 +141,17 @@ The reconstruction and forecasting modules provide a solid foundation for the op
 
 #### B. Procurement Strategy Optimization (Scenario Analysis)
 We simulated different procurement strategies to find the optimal balance between operational costs and freshness.
+| Strategy | P | U | Total Cost ($/day) | Freshness Penalty | Logistics Cost | Description |
+| :--- | :-: | :-: | :--- | :--- | :--- | :--- |
+| **Hyper-Fresh** | 2 | 2 | 50,257 | **51.9** (Best) | 1,404 | Local sourcing, frequent orders. |
+| **Local-Batch** | 2 | 5 | 47,591 | 116.1 | 925 | Local sourcing, consolidated orders. |
+| **Balanced** | 3 | 3 | 46,016 | 69.4 | 935 | Mid-range sourcing. |
+| **Bulk-Farm** | 4 | 3 | **39,693** (Optimal) | 58.2 | **934** | **Farm access + Optimized frequency.** |
+| **JIT-Farm** | 5 | 2 | 43,610 | 43.7 | 1,404 | Farm sourcing, JIT replenishment. |
 
-| Strategy | Description | Total Daily Cost ($) | Freshness Penalty | Logistics Cost |
-| :--- | :--- | :--- | :--- | :--- |
-| **Hyper-Fresh** | High Cost, Max Freshness | 50,257 | **51.9** | 1,404 |
-| **Local-Batch** | Local Sourcing, Min Logistics | 47,591 | 116.1 | 925 |
-| **Balanced** | Mid-range Sourcing | 46,016 | 69.4 | 935 |
-| **JIT-Farm** | Farm Sourcing, High Freq | 43,610 | 43.7 | 1,404 |
-| **Bulk-Farm (Proposed)** | **Farm Sourcing, Opt. Logistics** | **39,693** | **58.2** | **934** |
+**Key Findings:**
+1.  **Optimal Strategy (Bulk-Farm):** Achieved **21% cost reduction** vs. Hyper-Fresh strategy. It balances low Farm prices with efficient logistics, accepting a minimal freshness penalty.
+2.  **The Logistics Trap:** Strategies ignoring fixed costs (like JIT-Farm with $U=2$) incur 50% higher logistics costs ($1,404 vs $934), negating the savings from cheap farm prices.
 
 #### C. Comprehensive Baseline Comparison
 
