@@ -196,6 +196,7 @@ We benchmarked our proposed **Bulk-Farm** model against a wide range of baseline
 | **EOQ Policy** | Academic | 22,959 | Classic Economic Order Quantity (Textbook). |
 | **No Freshness Penalty**| Ablation | 37,297 | Optimization without freshness consideration. |
 
+<img src="data/artifacts/analysis_report/baselines/improvement_percentages.png" alt="Biểu đồ so sánh Baseline" width="80%">
 **Key Evaluation Insights:**
 1.  **Efficiency:** The proposed model reduces daily costs by **69.4%** compared to the worst baseline and outperforms the closest industry standard (Regional Sourcing) by **~8.6%**.
 2.  **The "Cheapest Price" Trap:** Simply choosing the cheapest supplier results in high costs ($64k) due to inefficient logistics, proving that price alone is a poor indicator of total landed cost.
