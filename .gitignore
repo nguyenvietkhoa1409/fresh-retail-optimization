@@ -53,3 +53,4 @@ data/artifacts/*
 # thì nó vẫn bị ignore bởi rule *.csv ở trên.
 # Nếu muốn giữ cả file csv trong folder report, hãy bỏ comment dòng dưới:
 !data/artifacts/analysis_report/**/*.csv
+!data/artifacts/analysis_report/**/*.png
