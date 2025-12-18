@@ -1,3 +1,26 @@
-Total Demand (kg): 8449.08
-Total Supply (kg): 0.00
-Ratio: 0.000
+============================================================
+ ENHANCED INVENTORY PLANNER - DIAGNOSTICS
+============================================================
+
+Total Demand (kg): 8,449.08
+Average Supply/Demand Ratio: 1489.34x
+
+Supplier Network:
+  Total Suppliers: 17
+
+  By Archetype:
+    regional_distributor: 6
+    local_specialty: 4
+    bulk_wholesaler: 4
+    farm_direct: 3
+
+Demand Summary:
+  Store-Product Pairs: 80
+  Unique Stores: 20
+  Unique Products: 4
+
+  By Category:
+    Fresh: 40 pairs, 746 kg
+    Ambient: 40 pairs, 7,703 kg
+
+============================================================

@@ -1,6 +1,6 @@
 P_lim,U_lim,Daily_Procurement_Cost,Daily_Distribution_Cost,Daily_Holding_Cost,Daily_Freshness_Penalty,Total_Daily_Cost,Strategy,Description,Crossdock_Time,Is_Next_Day
-2,2,39138.13,1404.09,43.26,4891.21,45476.7,Hyper-Fresh,"High Cost, Max Freshness",5:30,False
-2,5,37892.32,925.78,98.85,4885.71,43802.66,Local-Batch,"Local Sourcing, Min Logistics",5:30,False
-3,3,38446.93,934.55,61.79,4888.19,44331.46,Balanced,Mid-range Sourcing,5:30,False
-4,3,38446.93,934.55,61.79,4888.19,44331.46,Bulk-Farm,"Farm Sourcing, Optimized Logistics",5:30,False
-5,2,39138.13,1404.09,43.26,4891.21,45476.7,JIT-Farm,"Farm Sourcing, High Frequency",5:30,False
+2,2,46914.51,1404.09,51.9,1886.77,50257.27,Hyper-Fresh,"High Cost, Max Freshness",5:30,False
+2,5,44509.32,925.78,116.12,2039.84,47591.06,Local-Batch,"Local Sourcing, Min Logistics",5:30,False
+3,3,43140.97,934.55,69.35,1872.05,46016.92,Balanced,Mid-range Sourcing,5:30,False
+4,3,36304.65,934.55,58.19,2396.47,39693.86,Bulk-Farm,"Farm Sourcing, Optimized Logistics",5:30,False
+5,2,39621.06,1404.09,43.65,2541.82,43610.62,JIT-Farm,"Farm Sourcing, High Frequency",5:30,False

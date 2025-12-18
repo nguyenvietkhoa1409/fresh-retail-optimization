@@ -29,5 +29,12 @@ data/raw/
 # data/artifacts/vrp_route_maps/
 # data/artifacts/diagnostics/
 
+# Project Artifacts & Data (QUAN TRỌNG)
+artifacts/
+data/
+*.parquet
+*.csv
+*.log
+
 # Keep the Analysis Report images (We want to show these on GitHub!)
 !data/artifacts/analysis_report/

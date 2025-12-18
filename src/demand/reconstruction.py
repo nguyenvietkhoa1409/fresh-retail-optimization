@@ -82,9 +82,13 @@ class DemandReconstructor:
         print(" -> Running Validation: Random Censoring Test (Global WAPE Approach)")
         qa_metrics = self._evaluate_quality_per_product(df)
 
-        # 7. Correlation Analysis (Fisher Weighted)
+        # 7. Correlation Analysis (Fisher Weighted) - NOW MERGED INTO METRICS
         print(" -> Running Correlation Analysis (rhoDS Weighted)...")
-        self._analyze_correlations(df)
+        correlation_metrics = self._analyze_correlations(df)
+        
+        # Merge correlation results into QA metrics if available
+        if correlation_metrics:
+            qa_metrics.update(correlation_metrics)
 
         # 8. Save
         out_path = os.path.join(self.current_output_dir, "part2_reconstructed.parquet")
@@ -95,7 +99,7 @@ class DemandReconstructor:
             json.dump(qa_metrics, f, indent=2)
 
         print(f" -> Reconstructed data saved to {out_path}")
-        print(f" -> QA metrics saved to {qa_path}")
+        print(f" -> QA metrics (incl. Correlation) saved to {qa_path}")
 
         return df
 
@@ -448,7 +452,7 @@ class DemandReconstructor:
 
         if stats_df.empty:
             print("     [Warning] No valid correlations computed.")
-            return
+            return None
 
         # 3. Fisher Z-Transformation Weighted Average
         def fisher_avg(r_values, weights):
@@ -472,3 +476,9 @@ class DemandReconstructor:
         print(f" Raw Sales Decoupling (Weighted):   {rho_raw_weighted:.3f} (Expect ~ -0.57)")
         print(f" Reconstructed Decoupling (Weighted): {rho_rec_weighted:.3f} (Target: Near 0.0)")
         print("="*50)
+        
+        # Return values to be merged into QA Metrics
+        return {
+            "Weighted_Correlation_Raw": float(rho_raw_weighted),
+            "Weighted_Correlation_Reconstructed": float(rho_rec_weighted)
+        }
