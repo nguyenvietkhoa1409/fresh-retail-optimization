@@ -105,7 +105,6 @@ $$
 #### 4.1. Heterogeneous Supplier Network (Tiered System)
 Unlike standard benchmarks that assume uniform suppliers, we designed a **4-Tier Supplier System** to force strategic trade-offs between **Unit Price**, **Logistics Cost**, and **Responsiveness**.
 
-*Data Source: `src/data_pipeline/generator_v2.py`*
 
 | Supplier Archetype | Distance Range | Price Multiplier | Fixed Cost | Lead Time | Strategic Characteristics |
 | :--- | :--- | :--- | :--- | :--- | :--- |
@@ -127,7 +126,6 @@ Unlike standard benchmarks that assume uniform suppliers, we designed a **4-Tier
 #### 4.3. Logistics Resources (Heterogeneous Fleet)
 The logistics model utilizes a mixed fleet to optimize for different route characteristics (long-haul inbound vs. short-haul outbound).
 
-*Config: `config/settings.py`*
 
 | Vehicle Type | Capacity (kg) | Fixed Cost ($) | Variable Cost ($/km) | Use Case |
 | :--- | :--- | :--- | :--- | :--- |
