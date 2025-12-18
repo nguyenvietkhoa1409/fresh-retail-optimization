@@ -23,7 +23,7 @@ Data analysis from the **FreshRetailNet-50K** dataset reveals that approximately
 *Mathematical Formulation:*
 $$D_{observed} \leq D_{true}$$
 $$D_{true} = D_{observed} + D_{lost}$$
-*Where $$D_{lost}$$ represents unobserved demand during stockout periods.*
+Where $$D_{lost}$$ represents unobserved demand during stockout periods.
 
 **1.2.2. Multi-Objective Procurement Decisions**
 Fresh retail procurement requires simultaneous optimization across multiple conflicting objectives:
