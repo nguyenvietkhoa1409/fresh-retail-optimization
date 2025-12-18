@@ -20,21 +20,36 @@ cbc_procure.log
 data/hf_cache/
 data/raw/
 
-# Generated Artifacts (Optional: Keep report images, ignore heavy data)
-# Uncomment the lines below if you DON'T want to upload generated csv/parquet
-# data/artifacts/part1/
-# data/artifacts/part2/
-# data/artifacts/forecasting/
-# data/artifacts/procurement/
-# data/artifacts/vrp_route_maps/
-# data/artifacts/diagnostics/
 
-# Project Artifacts & Data (QUAN TRỌNG)
+# 1. Ignore thư mục artifacts ở root (nếu có)
 artifacts/
-data/
+
+# 2. Xử lý thư mục data/
+# Thay vì ignore "data/", ta ignore "data/*" (tất cả nội dung bên trong)
+# Nhưng phải giữ lại chính folder data để Git có thể chui vào trong check tiếp
+data/*
+!data/
+
+# 3. Đi vào trong data/, ta muốn giữ lại artifacts để đi tiếp
+!data/artifacts/
+
+# 4. Vào trong data/artifacts/, ta lại ignore tất cả
+data/artifacts/*
+
+# 5. CUỐI CÙNG: Giữ lại analysis_report (whitelist)
+!data/artifacts/analysis_report/
+
+# -----------------------------------------------------------
+# GLOBAL EXTENSION IGNORE
+# -----------------------------------------------------------
 *.parquet
 *.csv
 *.log
+*.png
+*.svg
 
-# Keep the Analysis Report images (We want to show these on GitHub!)
-!data/artifacts/analysis_report/
+# LƯU Ý QUAN TRỌNG:
+# Nếu trong folder "baselines" của bạn có chứa file .csv hay .parquet,
+# thì nó vẫn bị ignore bởi rule *.csv ở trên.
+# Nếu muốn giữ cả file csv trong folder report, hãy bỏ comment dòng dưới:
+!data/artifacts/analysis_report/**/*.csv

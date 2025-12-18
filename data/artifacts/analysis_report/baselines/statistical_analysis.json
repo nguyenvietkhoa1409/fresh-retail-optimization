@@ -1,0 +1,8 @@
+{
+  "optimal_cost": 39693.86,
+  "worst_baseline": 129904.07850757397,
+  "best_baseline": 21760.037002667854,
+  "mean_baseline": 52652.07547498648,
+  "improvement_over_worst": 69.44371535056486,
+  "improvement_over_best_baseline": -82.41632583222813
+}

@@ -1,0 +1,13 @@
+name,category,daily_cost,num_orders,description,avg_distance_km,feasible_pairs
+Random Assignment,Naive,48655.37728831615,80.0,Random supplier selection (worst case),,
+Nearest Supplier,Naive,61965.15889450041,80.0,Always choose closest supplier (myopic),17.675483000129354,
+Cheapest Price,Naive,64003.46870292767,80.0,Lowest unit price only (ignores distance),,
+Single-Tier (Local),Industry,58735.57227319057,80.0,Restrict to local suppliers only,,80.0
+Single-Tier (Regional),Industry,43133.05446118048,80.0,Restrict to regional suppliers only,,80.0
+Single-Tier (Farm),Industry,64003.46870292767,80.0,Restrict to farm suppliers only,,80.0
+Equal Allocation,Industry,129904.07850757397,240.0,Split orders among top 3 suppliers (diversification),,
+EOQ Policy,Academic,22959.020722231893,1.5966755566980395,Classic Economic Order Quantity (textbook),,
+No Freshness Penalty,Ablation,37297.39,,Optimal strategy without freshness consideration,,
+No Fixed Costs,Ablation,21760.037002667854,,Ignoring setup costs (unrealistic lower bound),,
+No Capacity Limits,Ablation,26756.203669334518,,Unlimited supplier capacity (theoretical lower bound),,
+Proposed (Bulk-Farm),Proposed,39693.86,,Integrated optimization (this work),,

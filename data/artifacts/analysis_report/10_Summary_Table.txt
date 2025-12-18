@@ -1,0 +1,12 @@
+================================================================================
+  STRATEGIC OPTIMIZATION RESULTS SUMMARY
+================================================================================
+
+   Strategy  P_lim  U_lim Daily_Procurement_Cost Daily_Distribution_Cost Daily_Holding_Cost Daily_Freshness_Penalty Total_Daily_Cost
+Hyper-Fresh      2      2                $46,915                  $1,404                $52                  $1,887          $50,257
+Local-Batch      2      5                $44,509                    $926               $116                  $2,040          $47,591
+   Balanced      3      3                $43,141                    $935                $69                  $1,872          $46,017
+  Bulk-Farm      4      3                $36,305                    $935                $58                  $2,396          $39,694
+   JIT-Farm      5      2                $39,621                  $1,404                $44                  $2,542          $43,611
+
+================================================================================
