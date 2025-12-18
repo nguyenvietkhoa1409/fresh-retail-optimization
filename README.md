@@ -67,4 +67,3 @@ fresh-retail-optimization/
 ├── run_all.py                  # Script chạy toàn bộ quy trình End-to-End
 ├── requirements.txt            # Danh sách thư viện phụ thuộc
 └── README.md                   # Tài liệu hướng dẫn
-Dự án được phát triển bởi Nguyễn Viết Khoa & Ngô Tấn Phong - 2025.
