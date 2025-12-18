@@ -94,39 +94,61 @@ The project is structured into a sequential workflow where the output of one mod
 
 ---
 
-### 3. Experiment Design & Network Topology
+### 4. Experiment Design & Network Topology
 
-To simulate the complexity of a real-world supply chain, we designed a heterogeneous network environment.
+To rigorously evaluate the proposed framework, we simulated a realistic, high-density fresh retail supply chain centered around a major urban hub (Coordinates: $31.23^{\circ}N, 121.47^{\circ}E$). The simulation is governed by a **Two-Echelon Cross-Docking** topology:
 
-#### 3.1. Supply Chain Structure
-The simulation follows a **Two-Echelon** structure:
-$$\text{Suppliers} \xrightarrow{\text{Inbound VRP}} \text{Center Warehouse (Cross-dock)} \xrightarrow{\text{Outbound VRP}} \text{Stores}$$
+$$
+\text{Suppliers} \xrightarrow[\text{Inbound VRP}]{\text{Fleet Mix}} \text{Central Warehouse (Cross-dock)} \xrightarrow[\text{Outbound VRP}]{\text{Last-mile}} \text{Retail Stores}
+$$
 
-* **Stores:** 20+ retail locations distributed within a defined radius, with varying demand profiles.
-* **Warehouse:** Central hub acting as a cross-docking point (no long-term storage).
+#### 4.1. Heterogeneous Supplier Network (Tiered System)
+Unlike standard benchmarks that assume uniform suppliers, we designed a **4-Tier Supplier System** to force strategic trade-offs between **Unit Price**, **Logistics Cost**, and **Responsiveness**.
 
-#### 3.2. Supplier Tiering System
-Based on `EnhancedSupplierGenerator`, we modeled 4 distinct supplier archetypes to create realistic trade-offs between **Cost, Distance, Reliability, and Freshness**:
+*Data Source: `src/data_pipeline/generator_v2.py`*
 
-| Archetype | Distance (km) | Unit Price | Fixed Cost | MOQ | Lead Time | Strategic Role |
-| :--- | :--- | :--- | :--- | :--- | :--- | :--- |
-| **Local Specialty** | 5 - 30 km | High (1.4x) | Low (0.5x) | Low (10-50) | ~1 day | **Agility:** Fast replenishment, high freshness, high cost. |
-| **Regional Dist.** | 30 - 100 km | Avg (1.0x) | Avg (1.0x) | Med (50-200)| ~2 days | **Balance:** Standard sourcing option. |
-| **Bulk Wholesaler**| 100 - 200 km | Low (0.7x) | High (2.0x) | High (200+) | ~4 days | **Economy:** Volume based, requires consolidation. |
-| **Farm Direct** | 150 - 400 km | Cheapest (0.5x)| Very High (3.0x)| Very High | ~5-7 days | **Deep Tier:** Max margin potential but high logistics risk. |
+| Supplier Archetype | Distance Range | Price Multiplier | Fixed Cost | Lead Time | Strategic Characteristics |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| **Local Specialty** | 5 - 30 km | **1.4x (High)** | 0.5x (Low) | ~1 day | **High Agility:** Ideal for JIT replenishment and highly perishable items. Minimal freshness loss. |
+| **Regional Distributor**| 30 - 100 km | 1.0x (Base) | 1.0x (Base) | ~2 days | **Baseline:** Standard trade-off between cost and distance. |
+| **Bulk Wholesaler** | 100 - 200 km | 0.7x (Low) | 2.0x (High) | ~4 days | **Economy of Scale:** Requires demand consolidation (High $U$) to amortize fixed ordering costs. |
+| **Farm Direct** | **150 - 400 km**| **0.5x (Lowest)**| **3.0x (Highest)**| **5-7 days**| **Deep Sourcing:** Maximum gross margin potential but carries high inventory risk and freshness penalties. |
 
-#### 3.3. Logistics & Fleet
-* **Cost Model:** Includes **Fixed Trip Costs** (driver wages, setup) and **Variable Costs** (fuel/maintenance per km).
-* **Constraints:** Vehicle capacity limits (kg), time windows for delivery, and maximum route duration.
+**Key Simulation Constraints:**
+* **Distance-Based Fixed Costs:** $Cost_{fixed}$ scales dynamically with distance ($1 + \frac{km}{200}$), penalizing frequent small orders from distant farms.
+* **Capacity Limits:** Suppliers have finite capacity, forcing the solver to diversify sourcing rather than relying on a single "cheapest" node.
 
-#### 3.4. Strategic Parameters (Design Space)
-We explored the optimization space using two key control parameters:
-* **$P$ (Planning Horizon):** How far ahead we look (Lead Time limit). High $P$ allows access to distant Farm suppliers.
-* **$U$ (Review Period):** Frequency of ordering. High $U$ implies order consolidation (batching).
+#### 4.2. Downstream Network (Stores & Warehouse)
+* **Central Warehouse:** Operates as a **Cross-Docking Hub** with a strict throughput window (04:00 - 02:00 +1 day). No long-term storage is permitted; all inbound goods must be sorted and dispatched.
+* **Retail Stores:** A network of **20 stores** distributed within a **1 km - 15 km** radius of the warehouse.
+    * **Demand Profiles:** Stochastic demand based on `FreshRetailNet-50K` data distributions.
+    * **Time Windows:** Strict receiving windows (06:00 - 10:00 AM) requiring precise VRP scheduling.
+
+#### 4.3. Logistics Resources (Heterogeneous Fleet)
+The logistics model utilizes a mixed fleet to optimize for different route characteristics (long-haul inbound vs. short-haul outbound).
+
+*Config: `config/settings.py`*
+
+| Vehicle Type | Capacity (kg) | Fixed Cost ($) | Variable Cost ($/km) | Use Case |
+| :--- | :--- | :--- | :--- | :--- |
+| **Small Truck** | 1,000 | 300.0 | 0.5 | Last-mile delivery to small stores; Urgent local pickups. |
+| **Medium Truck** | 3,000 | 500.0 | 0.8 | Standard regional routes. |
+| **Large Truck** | 8,000 | 900.0 | 1.2 | Bulk inbound transport from distant Wholesalers/Farms. |
+
+#### 4.4. Strategic Design Space (P-U Parameters)
+We define the optimization search space using two key control parameters:
+
+1.  **Planning Horizon ($P$):** Limits the maximum look-ahead capability (Lead Time).
+    * Low $P$ (2) $\rightarrow$ Can only see/order from Local/Regional suppliers.
+    * High $P$ (4-5) $\rightarrow$ Unlocks access to distant Farm suppliers (Lead time > 4 days).
+
+2.  **Review Period ($U$):** Determines the frequency of procurement cycles.
+    * Low $U$ (2) $\rightarrow$ Frequent ordering (High Logistics Cost, Low Holding Cost).
+    * High $U$ (5) $\rightarrow$ Order Batching (Low Logistics Cost, High Freshness Risk).
 
 ---
 
-### 4. Results & Evaluation
+### 5. Results & Evaluation
 
 Our framework was evaluated using a rigorous baseline comparison and sensitivity analysis. 
 
@@ -183,7 +205,7 @@ We benchmarked our proposed **Bulk-Farm** model against a wide range of baseline
 
 ---
 
-### 5. Project Structure
+### 6. Project Structure
 
 ```text
 fresh-retail-optimization/
