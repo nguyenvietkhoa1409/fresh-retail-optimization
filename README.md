@@ -93,6 +93,39 @@ The project is structured into a sequential workflow where the output of one mod
     3.  **Logistics (VRP):** Optimizing delivery routes from Suppliers $\rightarrow$ Center Warehouse $\rightarrow$ Stores.
 
 ---
+---
+
+### 3. Experiment Design & Network Topology
+
+To simulate the complexity of a real-world supply chain, we designed a heterogeneous network environment.
+
+#### 3.1. Supply Chain Structure
+The simulation follows a **Two-Echelon** structure:
+$$\text{Suppliers} \xrightarrow{\text{Inbound VRP}} \text{Center Warehouse (Cross-dock)} \xrightarrow{\text{Outbound VRP}} \text{Stores}$$
+
+* **Stores:** 20+ retail locations distributed within a defined radius, with varying demand profiles.
+* **Warehouse:** Central hub acting as a cross-docking point (no long-term storage).
+
+#### 3.2. Supplier Tiering System
+Based on `EnhancedSupplierGenerator`, we modeled 4 distinct supplier archetypes to create realistic trade-offs between **Cost, Distance, Reliability, and Freshness**:
+
+| Archetype | Distance (km) | Unit Price | Fixed Cost | MOQ | Lead Time | Strategic Role |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+| **Local Specialty** | 5 - 30 km | High (1.4x) | Low (0.5x) | Low (10-50) | ~1 day | **Agility:** Fast replenishment, high freshness, high cost. |
+| **Regional Dist.** | 30 - 100 km | Avg (1.0x) | Avg (1.0x) | Med (50-200)| ~2 days | **Balance:** Standard sourcing option. |
+| **Bulk Wholesaler**| 100 - 200 km | Low (0.7x) | High (2.0x) | High (200+) | ~4 days | **Economy:** Volume based, requires consolidation. |
+| **Farm Direct** | 150 - 400 km | Cheapest (0.5x)| Very High (3.0x)| Very High | ~5-7 days | **Deep Tier:** Max margin potential but high logistics risk. |
+
+#### 3.3. Logistics & Fleet
+* **Cost Model:** Includes **Fixed Trip Costs** (driver wages, setup) and **Variable Costs** (fuel/maintenance per km).
+* **Constraints:** Vehicle capacity limits (kg), time windows for delivery, and maximum route duration.
+
+#### 3.4. Strategic Parameters (Design Space)
+We explored the optimization space using two key control parameters:
+* **$P$ (Planning Horizon):** How far ahead we look (Lead Time limit). High $P$ allows access to distant Farm suppliers.
+* **$U$ (Review Period):** Frequency of ordering. High $U$ implies order consolidation (batching).
+
+---
 
 ### 4. Results & Evaluation
 
