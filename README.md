@@ -21,7 +21,7 @@ Traditional demand forecasting assumes observed sales data accurately represents
 Data analysis from the **FreshRetailNet-50K** dataset reveals that approximately **40-60%** of SKU-store-day observations exhibit some degree of intra-day stockout, making naive forecasting approaches fundamentally flawed.
 
 *Mathematical Formulation:*
-$$D_{observed} \leq D_{true}$$
+$$D_{observed} \leq D_{true}$$, 
 $$D_{true} = D_{observed} + D_{lost}$$
 Where $$D_{lost}$$ represents unobserved demand during stockout periods.
 
