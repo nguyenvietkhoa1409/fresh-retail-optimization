@@ -93,7 +93,6 @@ The project is structured into a sequential workflow where the output of one mod
     3.  **Logistics (VRP):** Optimizing delivery routes from Suppliers $\rightarrow$ Center Warehouse $\rightarrow$ Stores.
 
 ---
----
 
 ### 3. Experiment Design & Network Topology
 
