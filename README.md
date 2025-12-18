@@ -43,7 +43,7 @@ The project is structured into a sequential workflow where the output of one mod
 
 ### 3. Results & Evaluation
 
-Our framework was evaluated using a rigorous baseline comparison and sensitivity analysis. Below are the key performance insights.
+Our framework was evaluated using a rigorous baseline comparison and sensitivity analysis. 
 
 #### A. Demand Modeling Performance
 The reconstruction and forecasting modules provide a solid foundation for the optimization engine.
@@ -53,9 +53,7 @@ The reconstruction and forecasting modules provide a solid foundation for the op
 | **WAPE** | **27.38%** | **36.19%** |
 | **RMSE** | 0.35 | 2.18 |
 
-* *Insight:* Forecasting accuracy is highest at **Horizon 1 (WAPE ~24%)** and naturally degrades over longer horizons (H7 ~48%), validating the need for agile, frequent procurement cycles (e.g., JIT-Farm strategy).
-
-#### B. Procurement Strategy Optimization
+#### B. Procurement Strategy Optimization (Scenario Analysis)
 We simulated different procurement strategies to find the optimal balance between operational costs and freshness.
 
 | Strategy | Description | Total Daily Cost ($) | Freshness Penalty | Logistics Cost |
@@ -66,23 +64,37 @@ We simulated different procurement strategies to find the optimal balance betwee
 | **JIT-Farm** | Farm Sourcing, High Freq | 43,610 | 43.7 | 1,404 |
 | **Bulk-Farm (Proposed)** | **Farm Sourcing, Opt. Logistics** | **39,693** | **58.2** | **934** |
 
-**Key Insight:** The **Bulk-Farm** strategy is the global optimum. It achieves the lowest total cost by accepting a marginal increase in freshness penalty compared to "Hyper-Fresh" but drastically reducing procurement prices and maintaining efficient logistics.
+#### C. Comprehensive Baseline Comparison
 
-#### C. Baseline Comparison
-We compared our proposed approach against industry standards and naive heuristics.
+We benchmarked our proposed **Bulk-Farm** model against a wide range of baselines, divided into Operational Strategies (Naive/Industry) and Theoretical/Ablation studies.
 
-| Model Category | Strategy Name | Daily Cost ($) | Status |
+**Table 1: Operational Baselines (Naive & Industry Standards)**
+
+| Strategy Name | Category | Daily Cost ($) | Gap to Optimal | Description |
+| :--- | :--- | :--- | :--- | :--- |
+| **Proposed (Bulk-Farm)** | **Proposed** | **39,693** | **-** | **Integrated optimization (This work)** |
+| Single-Tier (Regional) | Industry | 43,133 | +8.6% | Restrict to regional suppliers only |
+| Random Assignment | Naive | 48,655 | +22.5% | Random supplier selection (worst case) |
+| Single-Tier (Local) | Industry | 58,735 | +48.0% | Restrict to local suppliers only |
+| Nearest Supplier | Naive | 61,965 | +56.1% | Always choose closest supplier (Myopic) |
+| Cheapest Price | Naive | 64,003 | +61.2% | Lowest unit price only (Ignores distance) |
+| Single-Tier (Farm) | Industry | 64,003 | +61.2% | Restrict to farm suppliers only |
+| Equal Allocation | Industry | 129,904 | +227% | Split orders among top 3 suppliers (Diversification) |
+
+**Table 2: Ablation Studies & Theoretical Bounds**
+
+| Strategy Name | Category | Daily Cost ($) | Description |
 | :--- | :--- | :--- | :--- |
-| **Proposed** | **Integrated Optimization (Bulk-Farm)** | **39,693** | **Best Feasible** |
-| Industry | Single-Tier (Regional) | 43,133 | +8.6% Cost |
-| Industry | Single-Tier (Local) | 58,735 | +48% Cost |
-| Naive | Nearest Supplier | 61,965 | +56% Cost |
-| Naive | Random Assignment | 48,655 | +22% Cost |
-| *Theoretical* | *EOQ Policy (No Constraints)* | *22,959* | *Unrealistic Lower Bound* |
+| **No Fixed Costs** | Ablation | 21,760 | **Theoretical Lower Bound.** Ignoring setup/logistics fixed costs (Unrealistic). |
+| **EOQ Policy** | Academic | 22,959 | Classic Economic Order Quantity (Textbook). Ignores complex constraints. |
+| **No Capacity Limits** | Ablation | 26,756 | Assumes unlimited supplier capacity. |
+| **No Freshness Penalty**| Ablation | 37,297 | Optimization without freshness consideration (Cheaper but lower quality). |
 
-**Performance Summary:**
-* **Improvement:** The proposed model achieves a **69.4% cost reduction** compared to the worst baseline (Equal Allocation).
-* **Efficiency:** It outperforms the "Single-Tier (Regional)" industry standard by approximately **$3,400 per day**, proving the value of dynamic supplier selection.
+**Key Evaluation Insights:**
+1.  **Efficiency:** The proposed model reduces daily costs by **69.4%** compared to the worst baseline (Equal Allocation) and outperforms the closest industry standard (Regional Sourcing) by **~8.6%**.
+2.  **The "Cheapest Price" Trap:** Simply choosing the cheapest supplier (or Farm-only) results in high costs ($64k) due to inefficient logistics and high transport distances, proving that price alone is a poor indicator of total landed cost.
+3.  **Logistics Impact:** The "Nearest Supplier" strategy performs poorly ($61k) because closest suppliers often have higher unit prices, failing to offset the transport savings.
+4.  **Optimality:** Our result ($39k) is significantly higher than the theoretical lower bound ($21k - No Fixed Costs), effectively quantifying the "Price of Logistics" and operational reality in the supply chain.
 
 ---
 
