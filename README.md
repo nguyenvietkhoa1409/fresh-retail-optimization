@@ -1,69 +1,127 @@
-# End-to-End Fresh Retail Supply Chain Optimization
-*(Hệ thống Tối ưu hóa Chuỗi cung ứng Bán lẻ Thực phẩm Tươi sống Khép kín)*
+# Fresh Retail Optimization 🥦🚛
 
-> **Capstone Project** | **Data Science & Operations Research**
+**An End-to-End Supply Chain Optimization Pipeline for Perishable Goods**
 
-## 1. Giới thiệu (Overview)
+This project implements a data-driven pipeline to optimize the supply chain for fresh retail. It integrates **Demand Reconstruction**, **Machine Learning Forecasting**, **Inventory Planning**, and **Integrated Logistics Optimization** to solve the complex trade-off between freshness, stockouts, and operational costs.
 
-Dự án này xây dựng một **Hệ thống Hỗ trợ Ra quyết định (Decision Support System - DSS)** tự động hóa dành cho chuỗi bán lẻ thực phẩm tươi sống (Fresh Retail). Hệ thống giải quyết bài toán cốt lõi: cân bằng giữa **Chi phí Vận hành (TCO)** và **Chất lượng Sản phẩm (Freshness)** thông qua một quy trình xử lý dữ liệu khép kín từ khôi phục nhu cầu ẩn đến tối ưu hóa logistics.
+---
 
-Hệ thống áp dụng phương pháp luận **Adaptive Sequential Decision-Making**, tích hợp các mô hình Học máy (Machine Learning) và Vận trù học (Operations Research) để đưa ra các quyết định đặt hàng và vận chuyển tối ưu.
+## 📖 1. Introduction
 
-## 2. Tính năng Cốt lõi (Key Features)
+Managing fresh inventory is the "holy grail" of retail difficulty. Retailers face a constant trilemma:
+1.  **Freshness:** Customers want the freshest produce (high waste risk).
+2.  **Availability:** Stockouts lead to lost revenue (high safety stock required).
+3.  **Cost:** Logistics and procurement costs must be minimized.
 
-Hệ thống bao gồm 4 module xử lý chính:
+This project moves beyond simple heuristics (like "always buy from the nearest supplier") by building a comprehensive pipeline that first cleans and understands the data, reconstructs true demand from sales history (accounting for stockouts), forecasts future demand, and finally uses an iterative solver to determine the optimal **Procurement Plan** and **Vehicle Routing Strategy**.
 
-* **📈 Module A: Khôi phục Nhu cầu Ẩn (Latent Demand Reconstruction)**
-    * Sử dụng thuật toán *Non-parametric Hierarchical Shrinkage*.
-    * Tự động phát hiện và khôi phục nhu cầu trong những ngày hết hàng (Stockout), loại bỏ thiên kiến dữ liệu.
+---
 
-* **🔮 Module B: Dự báo Đa kỳ hạn (Multi-Horizon Forecasting)**
-    * Sử dụng *LightGBM* với chiến lược *Direct Multi-Horizon*.
-    * Dự báo nhu cầu chính xác cho 7 ngày tới ($t+1 \dots t+7$), tích hợp các yếu tố mùa vụ, khuyến mãi.
+## 🏗 2. Core Framework & Modules
 
-* **📦 Module C: Hoạch định Tồn kho (Inventory Planning)**
-    * Mô hình *Smart Newsvendor* với mức độ phục vụ động (Risk-based Service Level).
-    * Tính toán Tồn kho an toàn (Safety Stock) và Điểm đặt hàng lại (ROP) dựa trên rủi ro và hạn sử dụng (Shelf-life).
+The pipeline is orchestrated via `run_enhanced_pipeline.py` and consists of 5 sequential stages:
 
-* **🚚 Module D: Tối ưu hóa Tích hợp (Integrated Procurement & VRP)**
-    * **Procurement:** Sử dụng quy hoạch tuyến tính nguyên (MILP) để chọn nhà cung cấp tối ưu chi phí và thời gian ($P$).
-    * **Logistics:** Sử dụng Constraint Programming (Google OR-Tools) để giải bài toán định tuyến xe (CVRPTW) với mô hình Cross-docking.
-    * **Simulation:** Mô phỏng các kịch bản chiến lược ($P, U$) để tìm ra điểm cân bằng tối ưu.
+### 🔹 Phase 1: Dataset Analysis & Intelligent Subsetting
+* **Module:** `src/analysis/dataset_analyzer.py`
+* **Function:** Automatically analyzes the statistical properties of the dataset (SBC Classification: Smooth, Lumpy, Erratic).
+* **Goal:** Recommends optimal subset parameters (`PAIR_LIMIT`) to ensure the downstream optimization runs on high-quality, representative data rather than noise.
 
-## 3. Cấu trúc Dự án (Project Structure)
+![SBC Matrix](data/artifacts/analysis_report/sbc_matrix.png)
+*Figure 1: SBC Matrix classification of demand patterns.*
 
-```text
-fresh-retail-optimization/
-├── config/
-│   └── settings.py             # Cấu hình toàn cục (Hyperparameters, Constants)
-├── data/
-│   ├── artifacts/              # Thư mục chứa dữ liệu đầu ra (Parquet, CSV, Images)
-│   └── ...                     # Dữ liệu đầu vào (FreshRetailNet-50K)
-├── src/
-│   ├── data_pipeline/
-│   │   ├── generator.py        # Sinh dữ liệu giả lập (Stores, Suppliers Locations)
-│   │   └── preprocessor.py     # Làm sạch dữ liệu & Gán nhãn Stockout (s16)
-│   ├── demand/
-│   │   ├── reconstruction.py   # Thuật toán Khôi phục nhu cầu (Hierarchical Shrinkage)
-│   │   └── forecasting.py      # Mô hình dự báo LightGBM
-│   ├── inventory/
-│   │   └── planner.py          # Tính toán Safety Stock & ROP
-│   ├── optimization/
-│   │   ├── procurement.py      # Tối ưu hóa mua hàng (MILP - PuLP)
-│   │   ├── logistics.py        # Tối ưu hóa vận tải (VRP - OR-Tools)
-│   │   ├── integrated_solver.py # Vòng lặp mô phỏng chiến lược (Core Logic)
-│   │   └── cost_evaluator.py   # Tính toán TCO & Freshness Penalty
-│   ├── analysis/
-│   │   ├── sensitivity.py      # Kiểm định độ nhạy (Sensitivity Test)
-│   │   └── reporter.py         # Sinh báo cáo & Biểu đồ
-│   └── utils/                  # Các hàm tiện ích (Geo, Common)
-├── 1.main_data.py              # Script chạy bước Data Pipeline
-├── 2.main_demand.py            # Script chạy bước Reconstruction
-├── 3.main_forecasting.py       # Script chạy bước Forecasting
-├── 4.main_inventory.py         # Script chạy bước Inventory Planning
-├── 5.main_integrated.py        # Script chạy bước Tối ưu hóa Tích hợp
-├── 6.report.py                 # Script sinh báo cáo cuối cùng
-├── 7.sensitivity_test.py       # Script chạy phân tích độ nhạy
-├── run_all.py                  # Script chạy toàn bộ quy trình End-to-End
-├── requirements.txt            # Danh sách thư viện phụ thuộc
-└── README.md                   # Tài liệu hướng dẫn
+### 🔹 Phase 2: Data Pipeline
+* **Module:** `src/data_pipeline`
+* **Function:** Handles data downloading, cleaning, and the generation of a synthetic supply chain network (Suppliers, Stores, Vehicles) to match the sales data.
+
+### 🔹 Phase 3: Demand Intelligence (Reconstruction & Forecasting)
+* **Module:** `src/demand`
+* **Reconstruction:** Uses statistical methods to "uncensor" demand. It estimates true demand during days where stockouts occurred (Sales = 0 but Demand > 0).
+* **Forecasting:** A LightGBM-based ensemble model that predicts future demand across multiple horizons (1 to 7 days).
+
+### 🔹 Phase 4: Inventory Planning
+* **Module:** `src/inventory`
+* **Function:** Calculates dynamic Safety Stock and Reorder Points (ROP) based on the volatility of the forecasted demand and supplier lead times.
+
+![Inventory Logic](data/artifacts/analysis_report/03_Inventory_Safety_Logic.png)
+*Figure 2: Dynamic Safety Stock & ROP Logic.*
+
+### 🔹 Phase 5: Integrated Optimization
+* **Module:** `src/optimization`
+* **The "Brain":** A joint optimization solver that simultaneously decides:
+    * **Procurement:** Which supplier to buy from? (Price vs. Distance vs. Quality).
+    * **Logistics:** How to route trucks? (VRP - Vehicle Routing Problem).
+    * **Freshness:** How to minimize spoilage penalties?
+
+![Integrated Tradeoff](data/artifacts/analysis_report/04_Integrated_Tradeoff.png)
+*Figure 3: Trade-off analysis between cost components.*
+
+---
+
+## 📊 3. Evaluation Metrics & Baselines
+
+We evaluate the system at two critical checkpoints: **Forecast Accuracy** and **Operational Efficiency**.
+
+### Key Metrics
+| Category | Metric | Description |
+| :--- | :--- | :--- |
+| **Demand** | **WAPE** (Weighted Absolute Percentage Error) | Measures volume-weighted forecast error. Lower is better. |
+| **Demand** | **RMSE** (Root Mean Square Error) | Penalizes large errors significantly. |
+| **Operational** | **Total Daily Cost** | Sum of Procurement + Distribution + Holding + Freshness Penalty. |
+| **Operational** | **Freshness Penalty** | A calculated cost representing the loss of shelf-life/quality. |
+
+### Baselines for Comparison
+To prove the efficacy of the **Proposed Method**, we compare it against:
+1.  **Naive Baselines:**
+    * *Random Assignment:* Serves as a worst-case scenario.
+    * *Nearest Supplier:* A common heuristic that minimizes distance but ignores price/quality.
+    * *Cheapest Price:* Minimizes unit cost but ignores logistics/spoilage.
+2.  **Industry Standards:**
+    * *Single-Tier:* Restricting sourcing to only Local or only Farm suppliers.
+3.  **Academic Bounds:**
+    * *EOQ (Economic Order Quantity):* A theoretical formula assuming perfect conditions (no spoilage, instant delivery). Used as a theoretical lower bound.
+
+---
+
+## 📈 4. Results & Core Insights
+
+### A. Optimization Strategy Performance
+The Integrated Solver simulated multiple strategies. The **Bulk-Farm** strategy emerged as the winner, balancing low procurement costs with optimized logistics, even outperforming local sourcing.
+
+![Cost Heatmap](data/artifacts/analysis_report/06_Cost_Heatmap_Total.png)
+*Figure 4: Total Cost Heatmap across different strategies.*
+
+| Strategy | Total Daily Cost | Procurement Cost | Logistics Cost | Freshness Penalty | Insight |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| **Bulk-Farm (Winner)** 🏆 | **$39,693** | $36,304 | $934 | $2,396 | **Optimal Balance.** Sourcing from farms lowers unit cost significantly, offsetting the slightly higher logistics. |
+| **JIT-Farm** | $43,610 | $39,621 | $1,404 | $2,541 | High frequency delivery increases logistics cost too much. |
+| **Balanced** | $46,016 | $43,140 | $934 | $1,872 | Middle ground, but fails to capitalize on bulk pricing. |
+| **Local-Batch** | $47,591 | $44,509 | $925 | $2,039 | Minimizes logistics, but high local unit prices drive up total cost. |
+| **Hyper-Fresh** | $50,257 | $46,914 | $1,404 | $1,886 | **Most Expensive.** Prioritizing max freshness yields diminishing returns due to high costs. |
+
+### B. Business Impact vs. Baselines
+The proposed model demonstrates superior real-world performance:
+* **vs. Random Assignment:** Reduced costs by **~18.5%**.
+* **vs. Nearest Supplier:** Reduced costs by **~36%**.
+* **vs. Cheapest Price:** Reduced costs by **~38%**.
+* *Note against EOQ:* The model is roughly 72% more expensive than the EOQ baseline. This is expected, as EOQ is a theoretical "impossible" standard (ignoring spoilage and routing constraints). Our model represents the **achievable optimal**.
+
+### C. Demand Intelligence Accuracy
+* **Reconstruction Quality:** The system achieved a Global WAPE of **27.3%** when reconstructing lost sales, significantly cleaning the data for the forecaster.
+* **Forecast Performance:**
+    * **Short-term (Day 1):** High accuracy (WAPE **24.2%**).
+    * **Long-term (Day 7):** Accuracy degrades (WAPE **48.0%**).
+    * **Insight:** This sharp degradation suggests that the optimization pipeline should be re-run daily or every 2 days to maintain efficiency, rather than planning for a full week at once.
+
+---
+
+## 💻 5. Quick Start
+
+### Prerequisites
+* Python 3.10+
+* Packages listed in `requirements.txt`
+
+### Running the Pipeline
+The entire process is automated. Simply run the enhanced pipeline script:
+
+```bash
+python run_enhanced_pipeline.py
