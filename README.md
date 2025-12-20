@@ -40,9 +40,12 @@ Traditional approaches treat procurement (supplier selection, order quantities) 
 
 #### 1.3. Research Gap
 Existing literature addresses these challenges in isolation:
-* *Demand reconstruction methods* (Weatherford & Pölt, 2002) focus on historical data calibration.
-* *Newsvendor models* (Silver et al., 1998) optimize single-period inventory decisions.
-* *Vehicle Routing Problems (VRP)* (Toth & Vigo, 2014) assume known demand and fixed supply points.
+* *Weatherford, L. R., & Pölt, S. (2002). Better unconstraining of airline demand data in
+revenue management systems for improved forecast accuracy and greater
+revenues.* (Weatherford & Pölt, 2002) focus on historical data calibration.
+* *Making the newsvendor smart–order quantity optimization with ANNs for a bakery chain.
+Patel, M., Venkatadri, U., Diallo, C., Habib, A., & Malekahmadi, A. (2024)* optimize single-period inventory decisions.
+* *An Adaptive Sequential Decision-Making Approach for Perishable Food Procurement, Storage and Distribution Using Hyperconnected Logistics. Sustainability, 16(1), 98.* assume known demand and fixed supply points.
 
 **This work integrates these components into a unified optimization framework, explicitly modeling the interdependencies between demand uncertainty, sourcing decisions, and distribution operations.**
 
