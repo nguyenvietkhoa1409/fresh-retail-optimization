@@ -73,6 +73,7 @@ Develop an integrated decision support system that minimizes total supply chain 
 ---
 
 ### 3. Technical Framework & Methodology
+<img src="framework.jpg" alt="Framework dự án" width="100%">
 
 The project is structured into a sequential workflow where the output of one module serves as the critical input for the next.
 
