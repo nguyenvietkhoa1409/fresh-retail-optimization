@@ -58,20 +58,22 @@ class ProjectConfig:
     MAX_SAMPLES = 200_000
     MIN_DAYS_PAIR = 90
     LGB_PARAMS = {"objective": "regression", "metric": "rmse", "learning_rate": 0.05, "num_leaves": 31, "min_data_in_leaf": 200, "lambda_l1": 1.0, "verbosity": -1, "seed": 2025, "device": "cpu"}
-
-    # --- PART 4: INVENTORY PLANNING ---
-    ECONOMICS_MODE = "proxy"
+    THRES_MEAN_SALES = 1.5   # Min avg daily sales
+    THRES_DATA_DENSITY = 0.7 # Min % of days with sales > 0
+    
+    # --- PART 4: INVENTORY PLANNING (DATA-DRIVEN UPDATE) ---
+    ECONOMICS_MODE = "catalog" # Changed from 'proxy'
     DAILY_HOLDING_RATE_PCT = 0.1 
     HOLDING_COST_MULTIPLIER = 1.0 
     
-    # Inventory Policy (Tau mapping)
-    TAU_BY_OOS = [(0.00, 0.10, 0.95), (0.10, 0.30, 0.85), (0.30, 0.50, 0.75), (0.50, 1.01, 0.60)]
+    # [NEW] SAA Configuration
+    SAA_POOLING_LEVEL = 'risk_group' # 'risk_group' or 'category_id'
+    MIN_RESIDUAL_SAMPLES = 30 # Min samples to use local SAA, else use Pooled
     
     # Supply Chain Params
     TARGET_SUPPLY_DEMAND_RATIO = 1.2 
     MOQ_RANGE_UNITS = (50, 200)
-    UNIT_WEIGHT = {101: 0.25, 102: 0.125, 201: 1.0, 202: 0.06}
-    MIN_STD_FRACTION = 0.10
+    UNIT_WEIGHT = {101: 0.25, 102: 0.125, 201: 1.0, 202: 0.06} # Fallback if not in catalog
     
     # Synthetic Geo Data
     CENTER_LAT = 31.2304
@@ -86,18 +88,12 @@ class ProjectConfig:
         (2, 150, 400, 0.40, 0.0, "Farm_Far")       
     ]
     
-    PRODUCT_CATEGORIES = [
-        (101, 1, "Fresh Strawberries", 0.40, 0.0018),
-        (102, 1, "Fresh Blueberries", 0.38, 0.0016),
-        (201, 2, "Whole Milk", 0.15, 0.0010),
-        (202, 2, "Eggs", 0.12, 0.0014),
-    ]
-    SHELF_LIFE_BY_CAT = {1: 7, 2: 12} 
-    PRICE_RANGE_BY_PRODUCT = {101: (4.5, 7.0), 102: (6.0, 9.0), 201: (1.1, 1.6), 202: (1.8, 3.0)}
-    DEMAND_RANGE_BY_PRODUCT = {101: (50, 150), 102: (40, 120), 201: (200, 500), 202: (150, 400)}
-    # --- [FIX] MISSING CONFIGS ADDED HERE ---
+    # --- [DEPRECATED] OLD PROXY CONFIGS REMOVED OR KEPT FOR FALLBACK ---
+    # PRODUCT_CATEGORIES, PRICE_RANGE_BY_PRODUCT etc. are now driven by CatalogEnricher
+    
     SUPPLIERS_PER_CAT_MAX = 6
     ELAPSED_RANGE_BY_CAT = {1: (0, 2), 2: (0, 4)}
+    
     # --- PART 5: PROCUREMENT OPTIMIZATION ---
     PROCURE_REVIEW_DAYS = 7.0
     SERVICE_LEVEL = 0.95 
@@ -111,7 +107,7 @@ class ProjectConfig:
     VERBOSE_SOLVER = True
     
     # --- PART 6: LOGISTICS VRP ---
-    VRP_MAX_ROUTE_DISTANCE_KM = 600 
+    VRP_MAX_ROUTE_DISTANCE_KM = 2000 
     VRP_SEARCH_TIME_LIMIT_SEC = 60
     
     VEHICLE_FLEET_DEFINITIONS = [

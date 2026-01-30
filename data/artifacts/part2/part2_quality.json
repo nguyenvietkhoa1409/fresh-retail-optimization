@@ -2,5 +2,7 @@
   "Total_Products_Evaluated": 514,
   "Overall_Global_WAPE": 27.378341719076733,
   "Overall_Mean_MAPE": 34.23073929961089,
-  "Overall_Mean_RMSE": 0.3474513618677043
+  "Overall_Mean_RMSE": 0.3474513618677043,
+  "Weighted_Correlation_Raw": -0.32359514539483214,
+  "Weighted_Correlation_Reconstructed": 0.0741509219647729
 }

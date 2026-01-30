@@ -1,13 +1,7 @@
-# src/inventory/planner_v2.py
+# src/inventory/planner.py
 """
-ENHANCED INVENTORY PLANNER
-Compatible with EnhancedSupplierGenerator and EnhancedProcurementOptimizer
-
-Key Updates:
-1. Reads supplier archetypes and metadata
-2. Preserves fixed_order_cost information
-3. Enhanced supplier-store assignment logic
-4. Maintains backward compatibility
+DATA-DRIVEN INVENTORY PLANNER (SAA Version)
+Aligns with Forecasting Hybrid ML/SMA
 """
 
 import os
@@ -17,550 +11,333 @@ from scipy.stats import norm
 from config.settings import ProjectConfig as Cfg
 from src.utils.geo import GeoUtils
 
-
-class EnhancedInventoryPlanner:
+class InventoryPlanner:
     """
-    Inventory planner that works with heterogeneous supplier network
-    """
+    DATA-DRIVEN INVENTORY PLANNER (SAA Version)
     
+    Core Improvements:
+    1. Reads 'future_forecast.parquet' (ML Output) instead of raw history.
+    2. Reads 'master_product_catalog.parquet' (Enriched Economics) instead of random gen.
+    3. Implements 'Pooled SAA' (Sample Average Approximation):
+       - Uses 'forecast_residuals.parquet' to build error distributions.
+       - Pools errors by 'risk_group' to handle sparse data/new products.
+       - Calculates Safety Stock dynamically based on Target Service Level (Cu/Cu+Co).
+    """
     def __init__(self):
         os.makedirs(Cfg.OUT_DIR_DIAGNOSTICS, exist_ok=True)
         self.rng = np.random.default_rng(Cfg.SEED)
+        
+        # Placeholders
+        self.catalog = None
+        self.residuals_pool = {} # {risk_group: [scaled_errors]}
     
     def run(self):
-        print("\n[Enhanced Inventory Planner] Starting pipeline...")
+        print("\n[Data-Driven Inventory Planner] Starting pipeline...")
         
-        # 1. Load base demand
-        summary = self._load_demand_data()
+        # 1. Load Master Catalog
+        self.catalog = self._load_catalog()
         
-        # 2. Load supply network (with new attributes!)
+        # 2. Load Forecasts (ML + SMA mixed)
+        forecast_df = self._load_forecast_data()
+        
+        # 3. Load & Process Residuals (Uncertainty)
+        self._build_saa_residuals_pool()
+        
+        # 4. Merge Data Streams
+        summary = self._merge_data(forecast_df)
+        
+        # 5. Load Supply Network
         suppliers_df, sp_df = self._load_supply_network()
         
-        # 3. Enrich with product metadata
-        summary = self._enrich_product_info(summary)
+        # 6. Assign Suppliers
+        summary = self._assign_suppliers(summary, suppliers_df, sp_df)
         
-        # 4. Rescale demand to realistic ranges
-        summary = self._rescale_demand_stats(summary)
+        # 7. Calculate Policies (SAA Core)
+        summary = self._calculate_policies_saa(summary, suppliers_df)
         
-        # 5. Assign suppliers to stores (distance-aware)
-        summary = self._assign_suppliers_enhanced(summary, suppliers_df, sp_df)
-        
-        # 6. Calculate inventory policies
-        summary = self._calculate_policies(summary, suppliers_df, sp_df)
-        
-        # 7. Save artifacts
+        # 8. Save & Diagnostics
         self._save_artifacts(summary, suppliers_df, sp_df)
+        self._run_diagnostics(summary)
         
-        # 8. Diagnostics
-        self._run_diagnostics(summary, suppliers_df, sp_df)
+        print("[Data-Driven Inventory Planner] Complete.")
+
+    def _load_catalog(self):
+        cat_path = os.path.join(Cfg.ARTIFACTS_DIR, "master_product_catalog.parquet")
+        if not os.path.exists(cat_path):
+            raise FileNotFoundError(f"Missing {cat_path}. Run CatalogEnricher first.")
         
-        print("[Enhanced Inventory Planner] Complete.")
-    
-    def _load_demand_data(self):
-        """Load reconstructed demand from Step 2"""
-        print("   -> Loading demand data...")
+        df = pd.read_parquet(cat_path)
+        df['product_id'] = df['product_id'].astype(str)
+        print(f"  -> Loaded Catalog: {len(df)} SKUs. Risk Groups: {df['risk_group'].unique()}")
+        return df
+
+    def _load_forecast_data(self):
+        fc_path = os.path.join(Cfg.ARTIFACTS_DIR, "future_forecast.parquet")
+        if not os.path.exists(fc_path):
+            raise FileNotFoundError(f"Missing {fc_path}. Run Forecasting v5.0 first.")
         
-        recon_path = os.path.join(Cfg.OUT_DIR_PART2, "part2_reconstructed.parquet")
+        df = pd.read_parquet(fc_path)
+        df['product_id'] = df['product_id'].astype(str)
+        df['store_id'] = df['store_id'].astype(str)
         
-        if not os.path.exists(recon_path):
-            raise FileNotFoundError(f"Missing: {recon_path}. Run Step 2 first.")
+        # Check if 'method' column exists (from v5.0)
+        has_method = 'method' in df.columns
         
-        df = pd.read_parquet(recon_path)
-        
-        # Standardize demand column
-        if 'y16' in df.columns:
-            df['daily_demand'] = df['y16'].apply(
-                lambda x: float(np.sum(x)) if isinstance(x, (list, np.ndarray)) else 0.0
-            )
-        elif 'd_recon' in df.columns:
-            df['daily_demand'] = df['d_recon']
-        else:
-            df['daily_demand'] = df.get('y', 0.0)
-        
-        # Standardize OOS column
-        if 's16' in df.columns:
-            df['oos_day'] = df['s16'].apply(
-                lambda s: float(np.mean(np.array(s) == 1)) 
-                if isinstance(s, (list, np.ndarray)) else 0.0
-            )
-        else:
-            df['oos_day'] = 0.0
-        
-        # Aggregate by store-product
-        summary = df.groupby(['store_id', 'product_id'], observed=True).agg(
-            predicted_mean=('daily_demand', 'mean'),
-            predicted_std=('daily_demand', lambda x: np.std(x, ddof=1) if len(x) > 1 else 0.0),
-            oos_rate=('oos_day', 'mean'),
-            n_days=('dt', 'nunique')
-        ).reset_index()
-        
-        # Filter by coverage and volume
-        TARGET_STORES = getattr(Cfg, 'GLOBAL_NUM_STORES', 20)
-        store_vol = summary.groupby('store_id')['predicted_mean'].sum().sort_values(ascending=False)
-        top_stores = store_vol.head(TARGET_STORES).index.tolist()
-        
-        summary = summary[summary['store_id'].isin(top_stores)].copy()
-        summary = summary.sort_values('predicted_mean', ascending=False).head(Cfg.PAIR_LIMIT)
-        summary.reset_index(drop=True, inplace=True)
-        
-        # Type enforcement
-        summary['store_id'] = summary['store_id'].astype(str)
-        summary['product_id'] = summary['product_id'].astype(int)
-        
-        print(f"    Loaded {len(summary)} store-product pairs from {len(top_stores)} stores")
-        
-        return summary
-    
-    def _load_supply_network(self):
-        """
-        Load supplier network with enhanced attributes
-        
-        CRITICAL: Must read from Step 1 artifacts (generator output)
-        """
-        print("   -> Loading supply network...")
-        
-        # 1. Load Suppliers (WITH NEW COLUMNS!)
-        sup_path = os.path.join(Cfg.ARTIFACTS_DIR, "suppliers.csv")
-        
-        if not os.path.exists(sup_path):
-            raise FileNotFoundError(
-                f"Missing: {sup_path}. Run enhanced generator first!"
-            )
-        
-        suppliers_df = pd.read_csv(sup_path)
-        suppliers_df['supplier_id'] = suppliers_df['supplier_id'].astype(int)
-        
-        # Verify new columns exist
-        expected_cols = ['archetype', 'distance_tier', 'lead_time_mean_days', 
-                        'lead_time_std_days', 'base_price_mult']
-        
-        missing = [c for c in expected_cols if c not in suppliers_df.columns]
-        
-        if missing:
-            print(f"    ⚠️  WARNING: Missing columns in suppliers.csv: {missing}")
-            print(f"    → Regenerate suppliers using EnhancedSupplierGenerator!")
-            
-            # Add defaults for backward compatibility
-            for col in missing:
-                if col == 'archetype':
-                    suppliers_df['archetype'] = 'generic'
-                elif col == 'distance_tier':
-                    suppliers_df['distance_tier'] = 'Unknown'
-                elif col == 'lead_time_mean_days':
-                    suppliers_df['lead_time_mean_days'] = 2.0
-                elif col == 'lead_time_std_days':
-                    suppliers_df['lead_time_std_days'] = 0.5
-                elif col == 'base_price_mult':
-                    suppliers_df['base_price_mult'] = 1.0
-        
-        # Standardize location columns
-        if 'sup_lat' in suppliers_df.columns and 'lat' not in suppliers_df.columns:
-            suppliers_df['lat'] = suppliers_df['sup_lat']
-            suppliers_df['lon'] = suppliers_df['sup_lon']
-        
-        print(f"    Loaded {len(suppliers_df)} suppliers")
-        print(f"    Archetypes: {suppliers_df['archetype'].value_counts().to_dict()}")
-        
-        # 2. Load Supplier-Product Matrix (WITH FIXED COSTS!)
-        sp_path = os.path.join(Cfg.ARTIFACTS_DIR, "supplier_product.csv")
-        
-        if not os.path.exists(sp_path):
-            raise FileNotFoundError(f"Missing: {sp_path}")
-        
-        sp_df = pd.read_csv(sp_path)
-        sp_df['supplier_id'] = sp_df['supplier_id'].astype(int)
-        sp_df['product_id'] = sp_df['product_id'].astype(int)
-        
-        # Verify critical columns
-        if 'fixed_order_cost' not in sp_df.columns:
-            print("    ⚠️  WARNING: 'fixed_order_cost' missing in supplier_product.csv")
-            print("    → Using global default. Sourcing differentiation may be weak!")
-            sp_df['fixed_order_cost'] = float(Cfg.FIXED_ORDER_COST)
-        
-        # Standardize freshness column name
-        if 'elapsed_shelf_days' in sp_df.columns and 'freshness_loss_days' not in sp_df.columns:
-            sp_df['freshness_loss_days'] = sp_df['elapsed_shelf_days']
-        elif 'freshness_loss_days' not in sp_df.columns:
-            sp_df['freshness_loss_days'] = 0.0
-        
-        print(f"    Loaded {len(sp_df)} supplier-product relationships")
-        print(f"    Fixed cost range: ${sp_df['fixed_order_cost'].min():.0f} - "
-              f"${sp_df['fixed_order_cost'].max():.0f}")
-        
-        return suppliers_df, sp_df
-    
-    def _enrich_product_info(self, summary):
-        """Add product metadata (category, shelf life, prices)"""
-        print("   -> Enriching with product metadata...")
-        
-        n = len(summary)
-        
-        # Assign categories (Fresh vs Ambient)
-        summary['category_id'] = self.rng.choice([1, 2], size=n, p=[0.5, 0.5])
-        
-        # Map to simulation product IDs
-        summary['sim_product_id'] = summary.apply(
-            lambda r: self.rng.choice([101, 102]) if r['category_id'] == 1 
-            else self.rng.choice([201, 202]),
-            axis=1
-        )
-        
-        # Aggregate duplicates (if same store gets multiple products mapped to same sim_id)
-        agg_rules = {
-            'predicted_mean': 'sum',
-            'predicted_std': lambda x: np.sqrt(np.sum(np.array(x)**2)),
-            'oos_rate': 'mean',
-            'n_days': 'max',
-            'category_id': 'first',
-            'sim_product_id': 'first'
+        # --- FIX: Sử dụng tuple (Source Column, Function) rõ ràng ---
+        agg_dict = {
+            'predicted_mean': ('predicted_mean', 'mean'),  # Sửa: Khai báo rõ cột nguồn
+            'n_days': ('date', 'nunique')                  # Sửa: Dùng tuple đơn giản thay vì NamedAgg
         }
         
-        summary = summary.groupby(['store_id', 'sim_product_id'], as_index=False).agg(agg_rules)
-        summary.rename(columns={'sim_product_id': 'product_id'}, inplace=True)
+        if has_method:
+            agg_dict['forecast_method'] = ('method', 'first')
+            
+        summary = df.groupby(['store_id', 'product_id'], observed=True).agg(**agg_dict).reset_index()
         
-        # Add shelf life
-        summary['shelf_life'] = summary['category_id'].map(
-            Cfg.SHELF_LIFE_BY_CAT
-        ).astype(float)
-        
-        # Add pricing
-        summary['price'] = summary['product_id'].map(
-            lambda p: self.rng.uniform(*Cfg.PRICE_RANGE_BY_PRODUCT[p])
-        )
-        
-        # Calculate holding cost
-        base_annual_rate = 0.20
-        summary['daily_holding_cost_unit'] = (
-            summary['price'] * (base_annual_rate / 365.0) * 
-            Cfg.HOLDING_COST_MULTIPLIER
-        )
-        
-        # Add demand ranges (for rescaling)
-        summary['demand_min'] = summary['product_id'].map(
-            lambda p: Cfg.DEMAND_RANGE_BY_PRODUCT[p][0]
-        )
-        summary['demand_max'] = summary['product_id'].map(
-            lambda p: Cfg.DEMAND_RANGE_BY_PRODUCT[p][1]
-        )
-        
-        # Add unit weight
-        summary['unit_weight_kg'] = summary['product_id'].map(
-            lambda p: Cfg.UNIT_WEIGHT.get(p, 1.0)
-        )
-        
+        print(f"  -> Loaded Forecasts: {len(summary)} pairs.")
+        if has_method:
+            print(f"     Method Breakdown: {summary['forecast_method'].value_counts().to_dict()}")
+            
         return summary
-    
-    def _rescale_demand_stats(self, summary):
-        """Rescale demand to realistic magnitude"""
-        print("   -> Rescaling demand statistics...")
+
+    def _build_saa_residuals_pool(self):
+        """Build Pooled Error Distributions from Residuals"""
+        res_path = os.path.join(Cfg.ARTIFACTS_DIR, "forecast_residuals.parquet")
+        if not os.path.exists(res_path):
+            print("  -> [Warning] No residuals found. SAA will fallback to Normal approx.")
+            return
+
+        df_res = pd.read_parquet(res_path)
+        df_res['product_id'] = df_res['product_id'].astype(str)
         
-        # Group statistics by product
-        grp_stats = summary.groupby('product_id')['predicted_mean'].agg(
-            ['min', 'max']
-        ).rename(columns={'min': 'curr_min', 'max': 'curr_max'})
+        # Merge with catalog to get Risk Group
+        df_res = df_res.merge(self.catalog[['product_id', 'risk_group']], on='product_id', how='left')
+        df_res['risk_group'] = df_res['risk_group'].fillna('Normal')
         
-        summary = summary.merge(grp_stats, on='product_id', how='left')
+        # Calculate Scaled Error (Scale-Free)
+        # Handle division by zero/small numbers robustly
+        safe_pred = np.maximum(df_res['y_pred'], 0.1)
+        df_res['scaled_error'] = df_res['error'] / safe_pred
         
-        # Linear rescaling formula
-        numerator = ((summary['predicted_mean'] - summary['curr_min']) * 
-                    (summary['demand_max'] - summary['demand_min']))
-        denominator = (summary['curr_max'] - summary['curr_min'])
+        # Remove extreme outliers (e.g., > 1000% error) that might break SAA
+        # df_res = df_res[df_res['scaled_error'].abs() < 10.0] 
         
-        # Handle flat distributions
-        mask_flat = denominator < 1e-9
+        self.residuals_pool = {}
+        for rg, group in df_res.groupby('risk_group'):
+            errors = group['scaled_error'].values
+            # Ensure we have enough samples
+            if len(errors) > 10:
+                self.residuals_pool[rg] = errors
+            
+        print(f"  -> Built SAA Pools for: {list(self.residuals_pool.keys())}")
+
+    def _merge_data(self, forecast_df):
+        merged = forecast_df.merge(self.catalog, on='product_id', how='left')
         
-        summary.loc[~mask_flat, 'predicted_mean'] = (
-            summary['demand_min'] + (numerator / denominator)
-        )
-        summary.loc[mask_flat, 'predicted_mean'] = (
-            (summary['demand_min'] + summary['demand_max']) / 2.0
-        )
+        # Defaults
+        merged['price'] = merged['price'].fillna(10.0)
+        merged['shelf_life'] = merged['shelf_life'].fillna(3.0)
+        merged['unit_weight_kg'] = 1.0
         
-        # Clean up
-        summary.drop(columns=['curr_min', 'curr_max'], inplace=True)
+        # Target Service Level (Crucial for SAA)
+        if 'target_sl_theoretical' not in merged.columns:
+             merged['target_sl_theoretical'] = 0.90
+        merged['target_sl_theoretical'] = merged['target_sl_theoretical'].fillna(0.90)
         
-        # Ensure non-negative
-        summary['predicted_std'] = summary['predicted_std'].fillna(0.0).clip(lower=0)
-        summary['predicted_mean'] = summary['predicted_mean'].fillna(0.0).clip(lower=0)
+        return merged
+
+    def _load_supply_network(self):
+        sup_path = os.path.join(Cfg.ARTIFACTS_DIR, "suppliers.csv")
+        sp_path = os.path.join(Cfg.ARTIFACTS_DIR, "supplier_product.csv")
         
-        # Apply minimum std (CV floor)
-        floor_std = Cfg.MIN_STD_FRACTION * summary['predicted_mean']
-        summary['predicted_std'] = np.maximum(summary['predicted_std'], floor_std)
+        suppliers_df = pd.read_csv(sup_path)
+        sp_df = pd.read_csv(sp_path)
         
-        return summary
-    
-    def _assign_suppliers_enhanced(self, summary, suppliers_df, sp_df):
-        """
-        Enhanced supplier assignment with archetype awareness
+        return suppliers_df, sp_df
+
+    def _assign_suppliers(self, summary, suppliers_df, sp_df):
+        """Link stores to potential suppliers based on location/product"""
+        print("  -> Assigning suppliers...")
         
-        Logic:
-        - For each store-product, find viable suppliers
-        - Consider distance, archetype, and capacity
-        - Assign top K candidates (sorted by composite score)
-        """
-        print("   -> Assigning suppliers to stores (enhanced)...")
+        # Type safety
+        summary['product_id'] = summary['product_id'].astype(str)
+        sp_df['product_id'] = sp_df['product_id'].astype(str)
+        sp_df['supplier_id'] = sp_df['supplier_id'].astype(int)
         
-        # Add store locations
+        # 1. Generate Store Locations (Deterministic)
         unique_stores = summary['store_id'].unique()
         store_locs = {}
-        
         for sid in unique_stores:
-            d = float(self.rng.uniform(*Cfg.STORE_RADIUS_KM))
-            b = float(self.rng.uniform(0, 360))
+            h = hash(sid)
+            rng_local = np.random.default_rng(abs(h))
+            d = float(rng_local.uniform(*Cfg.STORE_RADIUS_KM))
+            b = float(rng_local.uniform(0, 360))
             lat, lon = GeoUtils.dest_from(Cfg.CENTER_LAT, Cfg.CENTER_LON, d, b)
             store_locs[sid] = (lat, lon)
+            
+        summary['store_lat'] = summary['store_id'].map(lambda s: store_locs.get(s, (0,0))[0])
+        summary['store_lon'] = summary['store_id'].map(lambda s: store_locs.get(s, (0,0))[1])
         
-        summary['store_lat'] = summary['store_id'].map(lambda s: store_locs[s][0])
-        summary['store_lon'] = summary['store_id'].map(lambda s: store_locs[s][1])
-        
-        # Add time windows (for VRP later)
-        def gen_store_tw():
-            start_base = Cfg.STORE_OPEN_WINDOW[0]
-            start = start_base + self.rng.integers(0, 60)
-            duration = self.rng.integers(120, 240)
-            return start, start + duration
-        
-        tw_map = {sid: gen_store_tw() for sid in unique_stores}
+        # 2. Time Windows
+        # (Simple random assignment for now)
+        tw_map = {}
+        rng_tw = np.random.default_rng(42)
+        for sid in unique_stores:
+            start = Cfg.STORE_OPEN_WINDOW[0] + rng_tw.integers(0, 60)
+            tw_map[sid] = (start, start + rng_tw.integers(120, 240))
+            
         summary['tw_open'] = summary['store_id'].map(lambda s: tw_map[s][0])
         summary['tw_close'] = summary['store_id'].map(lambda s: tw_map[s][1])
         summary['service_time'] = Cfg.SERVICE_TIME_STORE_MINS
         
-        # Build supplier-product lookup
+        # 3. Supplier Lookup
         sp_lookup = sp_df.groupby('product_id')['supplier_id'].apply(list).to_dict()
-        
-        # Supplier metadata lookup
         sup_meta = suppliers_df.set_index('supplier_id').to_dict('index')
         
-        # For each store, find viable suppliers
-        assigned_suppliers_list = []
-        nearest_supplier_list = []
+        assigned_list = []
+        nearest_list = []
         
         for idx, row in summary.iterrows():
-            store_lat, store_lon = row['store_lat'], row['store_lon']
-            product_id = row['product_id']
+            s_lat, s_lon = row['store_lat'], row['store_lon']
+            pid = row['product_id']
             
-            # Get suppliers who can serve this product
-            viable_sids = sp_lookup.get(product_id, [])
-            
-            if not viable_sids:
-                assigned_suppliers_list.append([])
-                nearest_supplier_list.append(np.nan)
+            candidates = sp_lookup.get(pid, [])
+            if not candidates:
+                assigned_list.append([])
+                nearest_list.append(np.nan)
                 continue
-            
-            # Score each supplier (distance + archetype bonus)
+                
+            # Score suppliers (Distance + Archetype)
             scored = []
+            for sid in candidates:
+                if sid not in sup_meta: continue
+                s_info = sup_meta[sid]
+                
+                dist = GeoUtils.haversine_km(s_lat, s_lon, 
+                                             s_info.get('lat', 0), s_info.get('lon', 0))
+                
+                # Bonus/Penalty logic
+                arch = s_info.get('archetype', '')
+                bonus = -10 if arch == 'local_specialty' else (10 if arch == 'farm_direct' else 0)
+                
+                scored.append((sid, dist + bonus))
             
-            for sid in viable_sids:
-                if sid not in sup_meta:
-                    continue
-                
-                s = sup_meta[sid]
-                
-                # Calculate distance
-                dist_km = GeoUtils.haversine_km(
-                    store_lat, store_lon,
-                    s.get('lat', s.get('sup_lat', 0)),
-                    s.get('lon', s.get('sup_lon', 0))
-                )
-                
-                # Composite score (lower is better)
-                # Penalize distance, but give bonus to certain archetypes
-                archetype = s.get('archetype', 'generic')
-                
-                # Archetype bonuses (adjust competitive balance)
-                arch_bonus = {
-                    'local_specialty': -10,    # Bonus for local
-                    'regional_distributor': 0,  # Neutral
-                    'bulk_wholesaler': 5,       # Slight penalty (prefer for bulk only)
-                    'farm_direct': 10           # Penalty (prefer for large orders)
-                }.get(archetype, 0)
-                
-                score = dist_km + arch_bonus
-                scored.append((sid, score, dist_km))
-            
-            # Sort by score, take top 10 candidates
             scored.sort(key=lambda x: x[1])
-            top_candidates = [s[0] for s in scored[:10]]
-            nearest = scored[0][0] if scored else np.nan
+            top_ids = [x[0] for x in scored[:10]] # Keep top 10
             
-            assigned_suppliers_list.append(top_candidates)
-            nearest_supplier_list.append(nearest)
-        
-        summary['assigned_suppliers'] = assigned_suppliers_list
-        summary['nearest_supplier'] = nearest_supplier_list
-        
-        print(f"    Assigned average {np.mean([len(a) for a in assigned_suppliers_list]):.1f} "
-              f"candidates per store-product")
+            assigned_list.append(top_ids)
+            nearest_list.append(top_ids[0] if top_ids else np.nan)
+            
+        summary['assigned_suppliers'] = assigned_list
+        summary['nearest_supplier'] = nearest_list
         
         return summary
-    
-    def _calculate_policies(self, summary, suppliers_df, sp_df):
-        """Calculate inventory policies (ROP, SS, Order Qty)"""
-        print("   -> Calculating inventory policies...")
+
+    def _calculate_policies_saa(self, summary, suppliers_df):
+        """Calculate Order Qty using SAA"""
+        print("  -> Calculating Data-Driven Policies (SAA)...")
         
-        # Service level from OOS rate
-        def tau_from_oos(r):
-            for lo, hi, tau in Cfg.TAU_BY_OOS:
-                if lo <= r < hi:
-                    return tau
-            return 0.75
-        
-        summary['tau_i'] = summary['oos_rate'].apply(tau_from_oos)
-        summary['z'] = summary['tau_i'].apply(norm.ppf).fillna(1.65)
-        
-        # Base order quantity (newsvendor)
-        summary['order_qty_raw'] = (
-            summary['predicted_mean'] + 
-            summary['z'] * summary['predicted_std']
-        )
-        
-        # Cap by shelf life constraint
-        summary['order_qty_capped'] = np.minimum(
-            summary['order_qty_raw'],
-            summary['shelf_life'] * summary['predicted_mean']
-        ).clip(lower=0.0)
-        
-        # Convert to units and kg
-        summary['order_qty_units'] = np.ceil(summary['order_qty_capped']).astype(int)
-        summary['order_qty_kg'] = summary['order_qty_units'] * summary['unit_weight_kg']
-        
-        # Safety stock
-        ss_val = np.maximum(0.0, summary['z'] * summary['predicted_std'])
-        summary['safety_stock_units'] = np.ceil(ss_val).astype(int)
-        summary['safety_stock_kg'] = summary['safety_stock_units'] * summary['unit_weight_kg']
-        
-        # ROP (requires lead time from nearest supplier)
+        # Helper: Get Lead Time
         sup_lt_map = suppliers_df.set_index('supplier_id')['lead_time_mean_days'].to_dict()
-        sup_lt_std_map = suppliers_df.set_index('supplier_id')['lead_time_std_days'].to_dict()
         
-        summary['nearest_lead_mean'] = summary['nearest_supplier'].map(
-            lambda s: sup_lt_map.get(s, 2.0) if pd.notna(s) else 2.0
-        )
-        summary['nearest_lead_std'] = summary['nearest_supplier'].map(
-            lambda s: sup_lt_std_map.get(s, 0.5) if pd.notna(s) else 0.5
-        )
-        
-        # ROP formula (accounts for demand + lead time uncertainty)
-        L = summary['nearest_lead_mean']
-        sigma_L = summary['nearest_lead_std']
-        mean_d = summary['predicted_mean']
-        std_d = summary['predicted_std']
-        
-        variance_term = L * (std_d**2) + (mean_d**2) * (sigma_L**2)
-        rop_val = (mean_d * L + summary['z'] * np.sqrt(variance_term)).clip(lower=0)
-        
-        summary['rop_units'] = np.ceil(rop_val).astype(int)
-        summary['rop_kg'] = summary['rop_units'] * summary['unit_weight_kg']
+        results = []
+        for idx, row in summary.iterrows():
+            mean_demand = row['predicted_mean']
+            risk_group = row.get('risk_group', 'Normal')
+            target_sl = row.get('target_sl_theoretical', 0.95)
+            
+            # SAA Logic
+            errors = self.residuals_pool.get(risk_group, [])
+            if len(errors) == 0:
+                # Fallback to Global pool if specific risk group missing
+                errors = self.residuals_pool.get('Normal', [])
+            
+            if len(errors) > 0:
+                try:
+                    # Quantile of (True - Pred)/Pred
+                    # We want Coverage > Demand. 
+                    # If error distribution captures under-forecasting (positive error), 
+                    # quantile(0.95) gives the buffer needed.
+                    safety_factor = np.quantile(errors, target_sl)
+                except: safety_factor = 0.5
+            else:
+                # Fallback Normal approx
+                safety_factor = norm.ppf(target_sl) * 0.5 
+            
+            # Bound safety factor (e.g., don't reduce forecast by > 50%)
+            safety_factor = max(safety_factor, -0.5)
+            
+            # Quantities
+            # Note: predicted_mean is DAILY. We need to cover Review Period + Lead Time?
+            # For simplicity in this demo, we assume 'predicted_mean' is the Target Daily Rate
+            # and we order for 1 cycle (Review Period) + Buffer.
+            # Let's assume Review Period = 1 day (Daily ordering).
+            
+            # Safety Stock (Units)
+            safety_stock = mean_demand * safety_factor
+            safety_stock = max(0, safety_stock)
+            
+            # Order Qty (Base Stock Policy)
+            # Order = Forecast + SS
+            order_qty = mean_demand + safety_stock
+            
+            # Shelf Life Constraint
+            max_sellable = mean_demand * row.get('shelf_life', 3.0)
+            order_qty = min(order_qty, max_sellable)
+            
+            # ROP
+            ns = row['nearest_supplier']
+            lt = sup_lt_map.get(ns, 2.0) if pd.notna(ns) else 2.0
+            rop = (mean_demand * lt) + safety_stock
+            
+            results.append({
+                'safety_stock_units': float(np.ceil(safety_stock)),
+                'order_qty_units': float(np.ceil(order_qty)),
+                'rop_units': float(np.ceil(rop)),
+                'safety_factor_saa': float(safety_factor)
+            })
+            
+        res_df = pd.DataFrame(results, index=summary.index)
+        summary = pd.concat([summary, res_df], axis=1)
+        summary['order_qty_kg'] = summary['order_qty_units'] * summary.get('unit_weight_kg', 1.0)
         
         return summary
-    
+
     def _save_artifacts(self, summary, suppliers_df, sp_df):
-        """Save enriched data for downstream use"""
-        print("   -> Saving artifacts...")
+        print("  -> Saving artifacts...")
+        summary['oos_rate'] = 1.0 - summary['target_sl_theoretical']
         
-        # 1. Basic version (for Step 5 optimization)
-        basic_cols = [
+        # Prepare Unified Output
+        # Ensure all required columns exist
+        cols = [
             'store_id', 'product_id', 'store_lat', 'store_lon',
-            'predicted_mean', 'predicted_std', 'unit_weight_kg',
-            'oos_rate', 'n_days', 'tw_open', 'tw_close', 'service_time',
-            'assigned_suppliers', 'nearest_supplier'
+            'predicted_mean', 'unit_weight_kg', 'oos_rate',
+            'category_id', 'shelf_life', 'order_qty_units', 'order_qty_kg',
+            'rop_units', 'price', 'assigned_suppliers', 'nearest_supplier',
+            'tw_open', 'tw_close', 'service_time'
         ]
         
-        # Filter to existing columns
-        basic_cols_existing = [c for c in basic_cols if c in summary.columns]
-        
-        out_basic = os.path.join(Cfg.ARTIFACTS_DIR, "unified_for_procurement.parquet")
-        summary[basic_cols_existing].to_parquet(out_basic, index=False)
-        print(f"    Saved: unified_for_procurement.parquet")
-        
-        # 2. Enhanced version (with full metadata)
-        enhanced_cols = basic_cols + [
-            'category_id', 'shelf_life', 'tau_i', 'z',
-            'order_qty_units', 'order_qty_kg', 'order_qty_capped',
-            'safety_stock_units', 'safety_stock_kg',
-            'rop_units', 'rop_kg',
-            'price', 'daily_holding_cost_unit',
-            'nearest_lead_mean', 'nearest_lead_std'
-        ]
-        
-        enhanced_cols_existing = [c for c in enhanced_cols if c in summary.columns]
-        
-        out_enhanced = os.path.join(Cfg.ARTIFACTS_DIR, 
-                                    "unified_for_procurement_enhanced.parquet")
-        summary[enhanced_cols_existing].to_parquet(out_enhanced, index=False)
-        print(f"    Saved: unified_for_procurement_enhanced.parquet")
-        
-        # 3. Save harmonized supplier files (optional, for reference)
-        # Note: These are just copies/links to original files from generator
-        suppliers_out = os.path.join(Cfg.ARTIFACTS_DIR, "suppliers_harmonized_v2.csv")
-        suppliers_df.to_csv(suppliers_out, index=False)
-        
-        sp_out = os.path.join(Cfg.ARTIFACTS_DIR, "supplier_product_harmonized_v2.csv")
-        sp_df.to_csv(sp_out, index=False)
-        
-        print(f"    Saved harmonized supplier references")
-    
-    def _run_diagnostics(self, summary, suppliers_df, sp_df):
-        """Generate diagnostic summary"""
-        print("   -> Running diagnostics...")
-        
-        total_demand_kg = summary['order_qty_kg'].sum()
-        
-        # Calculate total supply capacity
-        if 'supplier_capacity_kg' in sp_df.columns:
-            # Aggregate by product
-            supply_by_product = sp_df.groupby('product_id')['supplier_capacity_kg'].sum()
+        if 'forecast_method' in summary.columns:
+            cols.append('forecast_method')
             
-            # Match with demand
-            demand_by_product = summary.groupby('product_id')['order_qty_kg'].sum()
+        for c in cols:
+            if c not in summary.columns: summary[c] = 0
             
-            ratios = []
-            for pid in demand_by_product.index:
-                d = demand_by_product[pid]
-                s = supply_by_product.get(pid, 0)
-                if d > 0:
-                    ratios.append(s / d)
-            
-            avg_ratio = np.mean(ratios) if ratios else 0.0
-        else:
-            avg_ratio = 0.0
+        out_path = os.path.join(Cfg.ARTIFACTS_DIR, "unified_for_procurement_enhanced.parquet")
+        summary[cols].to_parquet(out_path, index=False)
+        print(f"    Saved Unified Plan: {out_path}")
         
-        # Write diagnostics
-        diag_path = os.path.join(Cfg.OUT_DIR_DIAGNOSTICS, "diagnostics_summary_v2.txt")
+    def _run_diagnostics(self, summary):
+        print("  -> Diagnostics: Policy Stats by Risk Group")
+        grp = summary.groupby('risk_group')[['target_sl_theoretical', 'safety_factor_saa', 'order_qty_units']].mean()
+        print(grp)
         
-        with open(diag_path, 'w') as f:
-            f.write("=" * 60 + "\n")
-            f.write(" ENHANCED INVENTORY PLANNER - DIAGNOSTICS\n")
-            f.write("=" * 60 + "\n\n")
-            
-            f.write(f"Total Demand (kg): {total_demand_kg:,.2f}\n")
-            f.write(f"Average Supply/Demand Ratio: {avg_ratio:.2f}x\n\n")
-            
-            f.write("Supplier Network:\n")
-            f.write(f"  Total Suppliers: {len(suppliers_df)}\n")
-            
-            if 'archetype' in suppliers_df.columns:
-                f.write("\n  By Archetype:\n")
-                for arch, count in suppliers_df['archetype'].value_counts().items():
-                    f.write(f"    {arch}: {count}\n")
-            
-            f.write(f"\nDemand Summary:\n")
-            f.write(f"  Store-Product Pairs: {len(summary)}\n")
-            f.write(f"  Unique Stores: {summary['store_id'].nunique()}\n")
-            f.write(f"  Unique Products: {summary['product_id'].nunique()}\n")
-            
-            if 'category_id' in summary.columns:
-                f.write("\n  By Category:\n")
-                for cat, grp in summary.groupby('category_id'):
-                    cat_name = "Fresh" if cat == 1 else "Ambient"
-                    f.write(f"    {cat_name}: {len(grp)} pairs, "
-                           f"{grp['order_qty_kg'].sum():,.0f} kg\n")
-            
-            f.write("\n" + "=" * 60 + "\n")
-        
-        print(f"    Diagnostics saved to {diag_path}")
+        # Check SMA vs ML Logic (if available)
+        if 'forecast_method' in summary.columns:
+            print("\n  -> Diagnostics: Policy Stats by Method")
+            grp_met = summary.groupby('forecast_method')[['predicted_mean', 'safety_factor_saa', 'order_qty_units']].mean()
+            print(grp_met)
 
-
-# === INTEGRATION HELPER ===
-# For backward compatibility, can import as original name
-InventoryPlanner = EnhancedInventoryPlanner
+if __name__ == "__main__":
+    planner = InventoryPlanner()
+    planner.run()
