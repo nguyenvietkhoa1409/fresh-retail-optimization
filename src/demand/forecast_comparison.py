@@ -31,11 +31,12 @@ class ForecastComparisonEngine:
     set used by DemandForecaster._build_test_batch().
     Designed to be interrupt-friendly and resumable.
     """
-    def __init__(self):
-        os.makedirs(Cfg.FC_COMPARISON_OUT_DIR, exist_ok=True)
-        self.raw_results_path = os.path.join(Cfg.FC_COMPARISON_OUT_DIR, "comparison_results_raw.csv")
-        self.metrics_path = os.path.join(Cfg.FC_COMPARISON_OUT_DIR, "forecast_comparison_metrics.json")
-        self.summary_path = os.path.join(Cfg.FC_COMPARISON_OUT_DIR, "forecast_comparison_summary.csv")
+    def __init__(self, out_dir=None):
+        self.out_dir = out_dir if out_dir is not None else Cfg.FC_COMPARISON_OUT_DIR
+        os.makedirs(self.out_dir, exist_ok=True)
+        self.raw_results_path = os.path.join(self.out_dir, "comparison_results_raw.csv")
+        self.metrics_path = os.path.join(self.out_dir, "forecast_comparison_metrics.json")
+        self.summary_path = os.path.join(self.out_dir, "forecast_comparison_summary.csv")
         
         # Instantiate forecaster to reuse its data loading logic
         self.forecaster = DemandForecaster()
@@ -320,7 +321,7 @@ class ForecastComparisonEngine:
         
         # Plotting
         self._plot_results(df_metrics, df_all)
-        print(f"\n  -> Artifacts saved to: {Cfg.FC_COMPARISON_OUT_DIR}")
+        print(f"\n  -> Artifacts saved to: {self.out_dir}")
 
     def _plot_results(self, df_metrics, df_all):
         # 1. Bar Chart WAPE
@@ -330,7 +331,7 @@ class ForecastComparisonEngine:
         for i, v in enumerate(df_metrics['WAPE (%)']):
             plt.text(v + 0.5, i, f"{v:.1f}%", va='center')
         plt.tight_layout()
-        plt.savefig(os.path.join(Cfg.FC_COMPARISON_OUT_DIR, "comparison_wape_bar.png"), dpi=300)
+        plt.savefig(os.path.join(self.out_dir, "comparison_wape_bar.png"), dpi=300)
         plt.close()
         
         # 2. Time Series Overlay for Top 1 Item (by volume)
@@ -359,7 +360,7 @@ class ForecastComparisonEngine:
                 plt.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
                 plt.xticks(rotation=45)
                 plt.tight_layout()
-                plt.savefig(os.path.join(Cfg.FC_COMPARISON_OUT_DIR, "comparison_time_series_overlay.png"), dpi=300)
+                plt.savefig(os.path.join(self.out_dir, "comparison_time_series_overlay.png"), dpi=300)
                 plt.close()
         except Exception as e:
             print(f"  [Warn] Failed to plot overlay: {e}")
