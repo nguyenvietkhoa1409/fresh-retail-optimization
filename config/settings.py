@@ -144,3 +144,12 @@ class ProjectConfig:
     INTRA_HOUR_START = 6
     INTRA_HOUR_END = 21
     SIMULATION_VOL_THRESHOLDS = [1, 2, 3, 5, 8, 10]
+
+    # --- FORECAST COMPARISON ---
+    FC_SARIMA_MAX_P = 3       
+    FC_SARIMA_MAX_Q = 3
+    FC_SARIMA_SEASONAL = True
+    FC_SARIMA_M = 7           
+    FC_MAX_SERIES_FOR_SARIMA = 1000 # 1000 series, per user request
+    FC_PROPHET_CHANGEPOINT_SCALE = 0.05
+    FC_COMPARISON_OUT_DIR = os.path.join(BASE_DIR, "data", "artifacts", "forecasting", "comparison")
