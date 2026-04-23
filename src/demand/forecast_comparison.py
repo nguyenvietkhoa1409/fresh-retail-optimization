@@ -69,23 +69,39 @@ class ForecastComparisonEngine:
         processed_keys = set()
         if os.path.exists(self.raw_results_path):
             existing_df = pd.read_csv(self.raw_results_path)
-            # Count methods per store-product. We expect 4 methods: SARIMA, ETS, Prophet, SNaive, SMA-7
-            # Let's simply track keys that have any result to avoid repeating
             for _, row in existing_df.iterrows():
-                processed_keys.add(f"{row['store_id']}_{row['product_id']}")
-            print(f"  -> Found {len(processed_keys)} series already processed. Resuming...")
+                processed_keys.add(f"{row['store_id']}_{row['product_id']}_{row['method']}")
+            print(f"  -> Found {len(existing_df)} records already processed. Resuming...")
             
         # 5. Evaluate Statistical Baselines
+        models = [
+            ('SARIMA', self._run_sarima),
+            ('ETS', self._run_ets),
+            ('Prophet', self._run_prophet),
+            ('SNaive', self._run_snaive),
+            ('SMA-7 (Test Eval)', self._run_sma)
+        ]
+
         with open(self.raw_results_path, 'a' if processed_keys else 'w') as f:
             if not processed_keys:
                 f.write("store_id,product_id,method,horizon,date,y_true,y_pred\n")
             
-            for sample in tqdm(test_samples, desc="Evaluating baselines (SARIMA, Prophet, etc.)"):
-                key = f"{sample['store_id']}_{sample['product_id']}"
-                if key in processed_keys:
+            for method_name, method_func in models:
+                # Check if this model is already fully done
+                done_count = sum(1 for s in test_samples if f"{s['store_id']}_{s['product_id']}_{method_name}" in processed_keys)
+                if done_count == len(test_samples):
+                    print(f"  -> [{method_name}] already completed. Skipping.")
                     continue
                     
-                self._evaluate_sample(sample, f)
+                for sample in tqdm(test_samples, desc=f"Evaluating {method_name}"):
+                    key = f"{sample['store_id']}_{sample['product_id']}_{method_name}"
+                    if key in processed_keys:
+                        continue
+                    
+                    try:
+                        method_func(sample, f)
+                    except Exception:
+                        pass
                 
         # 6. Run Ablation (LightGBM without Lags)
         print("\n  -> Running LightGBM Ablation (No Lag Features)...")
@@ -124,64 +140,41 @@ class ForecastComparisonEngine:
             })
         return samples
 
-    def _evaluate_sample(self, sample, file_handle):
-        store = sample['store_id']
-        prod = sample['product_id']
-        y_hist = sample['y_history']
-        d_hist = sample['dates_history']
-        y_true = sample['y_truth']
-        d_true = sample['dates_truth']
-        
-        # 1. SARIMA
-        try:
-            sarima = auto_arima(y_hist, seasonal=Cfg.FC_SARIMA_SEASONAL, m=Cfg.FC_SARIMA_M, 
-                                max_p=Cfg.FC_SARIMA_MAX_P, max_q=Cfg.FC_SARIMA_MAX_Q, 
-                                max_P=1, max_Q=1, 
-                                trace=False, error_action='ignore', suppress_warnings=True)
-            y_sarima = sarima.predict(n_periods=Cfg.HORIZON)
-            self._write_results(file_handle, store, prod, 'SARIMA', d_true, y_true, y_sarima)
-        except Exception:
-            pass 
-            
-        # 2. ETS
-        try:
-            ets = ExponentialSmoothing(y_hist, seasonal_periods=7, trend='add', seasonal='add', initialization_method="estimated").fit()
-            y_ets = ets.forecast(Cfg.HORIZON)
-            self._write_results(file_handle, store, prod, 'ETS', d_true, y_true, y_ets)
-        except Exception:
-            pass
+    def _run_sarima(self, sample, file_handle):
+        sarima = auto_arima(sample['y_history'], seasonal=Cfg.FC_SARIMA_SEASONAL, m=Cfg.FC_SARIMA_M, 
+                            max_p=Cfg.FC_SARIMA_MAX_P, max_q=Cfg.FC_SARIMA_MAX_Q, 
+                            max_P=1, max_Q=1, 
+                            trace=False, error_action='ignore', suppress_warnings=True)
+        y_pred = sarima.predict(n_periods=Cfg.HORIZON)
+        self._write_results(file_handle, sample['store_id'], sample['product_id'], 'SARIMA', sample['dates_truth'], sample['y_truth'], y_pred)
 
-        # 3. Prophet
-        try:
-            df_prophet = pd.DataFrame({'ds': d_hist, 'y': y_hist})
-            m = Prophet(weekly_seasonality=True, yearly_seasonality=False, daily_seasonality=False, 
-                        changepoint_prior_scale=Cfg.FC_PROPHET_CHANGEPOINT_SCALE)
-            m.fit(df_prophet)
-            future = m.make_future_dataframe(periods=Cfg.HORIZON)
-            forecast = m.predict(future)
-            y_prophet = forecast['yhat'].values[-Cfg.HORIZON:]
-            self._write_results(file_handle, store, prod, 'Prophet', d_true, y_true, y_prophet)
-        except Exception:
-            pass
-            
-        # 4. Seasonal Naive
-        try:
-            if len(y_hist) >= 7:
-                y_snaive = []
-                for h in range(1, Cfg.HORIZON + 1):
-                    y_snaive.append(y_hist[-7 + (h-1) % 7])
-                self._write_results(file_handle, store, prod, 'SNaive', d_true, y_true, y_snaive)
-        except Exception:
-            pass
-            
-        # 5. SMA-7 Evaluated on Test
-        try:
-            if len(y_hist) >= 7:
-                sma_val = np.mean(y_hist[-7:])
-                y_sma = [sma_val] * Cfg.HORIZON
-                self._write_results(file_handle, store, prod, 'SMA-7 (Test Eval)', d_true, y_true, y_sma)
-        except Exception:
-            pass
+    def _run_ets(self, sample, file_handle):
+        ets = ExponentialSmoothing(sample['y_history'], seasonal_periods=7, trend='add', seasonal='add', initialization_method="estimated").fit()
+        y_pred = ets.forecast(Cfg.HORIZON)
+        self._write_results(file_handle, sample['store_id'], sample['product_id'], 'ETS', sample['dates_truth'], sample['y_truth'], y_pred)
+
+    def _run_prophet(self, sample, file_handle):
+        df_prophet = pd.DataFrame({'ds': sample['dates_history'], 'y': sample['y_history']})
+        m = Prophet(weekly_seasonality=True, yearly_seasonality=False, daily_seasonality=False, 
+                    changepoint_prior_scale=Cfg.FC_PROPHET_CHANGEPOINT_SCALE)
+        m.fit(df_prophet)
+        future = m.make_future_dataframe(periods=Cfg.HORIZON)
+        forecast = m.predict(future)
+        y_pred = forecast['yhat'].values[-Cfg.HORIZON:]
+        self._write_results(file_handle, sample['store_id'], sample['product_id'], 'Prophet', sample['dates_truth'], sample['y_truth'], y_pred)
+
+    def _run_snaive(self, sample, file_handle):
+        y_hist = sample['y_history']
+        if len(y_hist) >= 7:
+            y_pred = [y_hist[-7 + (h-1) % 7] for h in range(1, Cfg.HORIZON + 1)]
+            self._write_results(file_handle, sample['store_id'], sample['product_id'], 'SNaive', sample['dates_truth'], sample['y_truth'], y_pred)
+
+    def _run_sma(self, sample, file_handle):
+        y_hist = sample['y_history']
+        if len(y_hist) >= 7:
+            sma_val = np.mean(y_hist[-7:])
+            y_pred = [sma_val] * Cfg.HORIZON
+            self._write_results(file_handle, sample['store_id'], sample['product_id'], 'SMA-7 (Test Eval)', sample['dates_truth'], sample['y_truth'], y_pred)
 
     def _write_results(self, file_handle, store, prod, method, dates, y_true, y_pred):
         for h, (d, yt, yp) in enumerate(zip(dates, y_true, y_pred), start=1):
