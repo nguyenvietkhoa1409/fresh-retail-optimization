@@ -441,12 +441,20 @@ class DemandForecaster:
         meta_df['dt'] = pd.to_datetime(meta_df['dt_str'])
         feat['wday'] = meta_df['dt'].dt.weekday.values.astype(int)
         feat['month'] = meta_df['dt'].dt.month.values.astype(int)
-        merged = meta_df.merge(df_all_features[['store_id', 'product_id', 'dt', 'promo_bin', 'is_event', 'discount', 'avg_temperature']],
-                               on=['store_id', 'product_id', 'dt'], how='left')
-        feat['promo_bin'] = merged['promo_bin'].fillna(0).values.astype(int)
-        feat['is_event'] = merged['is_event'].fillna(0).values.astype(int)
-        feat['discount'] = merged['discount'].fillna(0.0).values.astype(float)
-        feat['avg_temp'] = merged['avg_temperature'].fillna(0.0).values.astype(float)
+        # Defensive merge: only pull columns that actually exist in df_all_features.
+        # This handles the case where preprocessed.parquet is unavailable (e.g. Colab).
+        _OPT_COLS = ['promo_bin', 'is_event', 'discount', 'avg_temperature']
+        _available = [c for c in _OPT_COLS if c in df_all_features.columns]
+        _merge_cols = ['store_id', 'product_id', 'dt'] + _available
+        if _available:
+            merged = meta_df.merge(df_all_features[_merge_cols],
+                                   on=['store_id', 'product_id', 'dt'], how='left')
+        else:
+            merged = meta_df.copy()
+        feat['promo_bin'] = merged['promo_bin'].fillna(0).values.astype(int)   if 'promo_bin'      in merged.columns else np.zeros(len(meta_df), dtype=int)
+        feat['is_event']  = merged['is_event'].fillna(0).values.astype(int)    if 'is_event'       in merged.columns else np.zeros(len(meta_df), dtype=int)
+        feat['discount']  = merged['discount'].fillna(0.0).values.astype(float) if 'discount'      in merged.columns else np.zeros(len(meta_df), dtype=float)
+        feat['avg_temp']  = merged['avg_temperature'].fillna(0.0).values.astype(float) if 'avg_temperature' in merged.columns else np.zeros(len(meta_df), dtype=float)
         if not self.store_map: 
             stores = np.unique(meta[:, 0]); prods = np.unique(meta[:, 1])
             self.store_map = {s: i for i, s in enumerate(stores)}
