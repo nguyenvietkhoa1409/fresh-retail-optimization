@@ -67,10 +67,16 @@ class ForecastComparisonEngine:
         
         # 4. Load processed keys
         processed_keys = set()
+        
+        def _clean_id(val):
+            # Removes '.0' if pandas loaded an int as a float
+            return str(val).split('.')[0]
+            
         if os.path.exists(self.raw_results_path):
             existing_df = pd.read_csv(self.raw_results_path)
             for _, row in existing_df.iterrows():
-                processed_keys.add(f"{row['store_id']}_{row['product_id']}_{row['method']}")
+                k = f"{_clean_id(row['store_id'])}_{_clean_id(row['product_id'])}_{row['method']}"
+                processed_keys.add(k)
             print(f"  -> Found {len(existing_df)} records already processed. Resuming...")
             
         # 5. Evaluate Statistical Baselines
@@ -88,13 +94,13 @@ class ForecastComparisonEngine:
             
             for method_name, method_func in models:
                 # Check if this model is already fully done
-                done_count = sum(1 for s in test_samples if f"{s['store_id']}_{s['product_id']}_{method_name}" in processed_keys)
+                done_count = sum(1 for s in test_samples if f"{_clean_id(s['store_id'])}_{_clean_id(s['product_id'])}_{method_name}" in processed_keys)
                 if done_count == len(test_samples):
                     print(f"  -> [{method_name}] already completed. Skipping.")
                     continue
                     
                 for sample in tqdm(test_samples, desc=f"Evaluating {method_name}"):
-                    key = f"{sample['store_id']}_{sample['product_id']}_{method_name}"
+                    key = f"{_clean_id(sample['store_id'])}_{_clean_id(sample['product_id'])}_{method_name}"
                     if key in processed_keys:
                         continue
                     
