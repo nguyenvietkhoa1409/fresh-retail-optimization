@@ -404,7 +404,7 @@ class DemandForecaster:
         if 'store_id' not in df: df['store_id'] = 'unk'
         df = df.groupby(['store_id', 'product_id', 'dt'], observed=True, as_index=False)['y'].sum()
         if os.path.exists(prep_path):
-            df = df.merge(prep[['store_id', 'product_id', 'dt', 'promo_bin', 'is_event', 'discount', 'avg_temperature']], 
+            df = df.merge(prep[cols], 
                           on=['store_id', 'product_id', 'dt'], how='left')
         return df
 

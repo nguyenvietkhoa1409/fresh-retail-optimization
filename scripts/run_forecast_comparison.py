@@ -17,6 +17,10 @@ def main():
     parser = argparse.ArgumentParser(description="Run Forecast Comparison Engine")
     parser.add_argument("--out_dir", type=str, default=None, 
                         help="Optional external output directory (e.g. /content/drive/MyDrive/...)")
+    parser.add_argument("--exclude", nargs='+', default=[], 
+                        help="List of models to exclude (e.g., --exclude SARIMA Prophet)")
+    parser.add_argument("--include", nargs='+', default=["all"], 
+                        help="List of models to include (e.g., --include ETS SNaive). Default is 'all'")
     args = parser.parse_args()
 
     t0 = time.time()
@@ -25,7 +29,11 @@ def main():
     if args.out_dir:
         print(f"Sử dụng thư mục lưu trữ tùy chỉnh: {args.out_dir}")
         
-    engine = ForecastComparisonEngine(out_dir=args.out_dir)
+    engine = ForecastComparisonEngine(
+        out_dir=args.out_dir, 
+        exclude_models=args.exclude, 
+        include_models=args.include
+    )
     engine.run()
     dur = (time.time() - t0) / 60
     print(f"\nHoàn thành trong {dur:.1f} phút.")

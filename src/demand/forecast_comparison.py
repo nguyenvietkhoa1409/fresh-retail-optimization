@@ -39,8 +39,10 @@ class ForecastComparisonEngine:
               All models (baselines + LightGBM) are measured on identical windows.
     """
 
-    def __init__(self, out_dir=None):
+    def __init__(self, out_dir=None, exclude_models=None, include_models=None):
         self.out_dir = out_dir if out_dir is not None else Cfg.FC_COMPARISON_OUT_DIR
+        self.exclude_models = [m.lower() for m in (exclude_models or [])]
+        self.include_models = [m.lower() for m in (include_models or ["all"])]
         os.makedirs(self.out_dir, exist_ok=True)
         self.raw_results_path = os.path.join(self.out_dir, "comparison_results_raw.csv")
         self.metrics_path     = os.path.join(self.out_dir, "forecast_comparison_metrics.json")
@@ -98,13 +100,25 @@ class ForecastComparisonEngine:
             print(f"  -> Found {len(existing_df)} records already processed. Resuming...")
 
         # 6. Evaluate Statistical Baselines
-        models = [
+        all_models = [
             ('SARIMA',           self._run_sarima),
             ('ETS',              self._run_ets),
             ('Prophet',          self._run_prophet),
             ('SNaive',           self._run_snaive),
             ('SMA-7 (Baseline)', self._run_sma),
         ]
+        
+        models = []
+        for name, func in all_models:
+            n_lower = name.lower()
+            if "all" not in self.include_models and not any(m in n_lower for m in self.include_models):
+                continue
+            if any(m in n_lower for m in self.exclude_models):
+                continue
+            models.append((name, func))
+
+        if not models:
+            print("  -> No baseline models selected for evaluation.")
 
         header = "store_id,product_id,method,horizon,date,y_true,y_pred,fold\n"
         with open(self.raw_results_path, 'a' if processed_keys else 'w') as f:
@@ -133,8 +147,15 @@ class ForecastComparisonEngine:
                         pass
 
         # 7. Ablation: LightGBM without Lag features
-        print("\n  -> Running LightGBM Ablation (No Lag Features)...")
-        self._run_lgb_ablation(df_ml)
+        run_lgb = True
+        if "all" not in self.include_models and not any("lgb" in m for m in self.include_models):
+            run_lgb = False
+        if any("lgb" in m for m in self.exclude_models):
+            run_lgb = False
+            
+        if run_lgb:
+            print("\n  -> Running LightGBM Ablation (No Lag Features)...")
+            self._run_lgb_ablation(df_ml)
 
         # 8. Aggregate & Plot
         self._aggregate_and_report()
