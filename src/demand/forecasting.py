@@ -156,47 +156,66 @@ class DemandForecaster:
         return future_df, residuals_df, metrics
 
     def _evaluate_ml_batch(self, df):
-        """Evaluate ML models on Hold-out set and return residuals + metrics"""
-        X_test, Y_test, meta_test = self._build_test_batch(df)
-        if len(X_test) == 0: return pd.DataFrame(), {}
+        """
+        Evaluate ML models across N walk-forward folds.
+        FAIRNESS FIXES:
+          - Bug #7: Walk-forward CV with FC_N_WF_FOLDS folds instead of single window.
+          - Bug #6: Date shift corrected to `days=h` (was `days=h-1`).
+          - Bug #4: Upper-bound clipping removed; only floor at 0 to match baselines.
+        """
+        n_folds = getattr(Cfg, 'FC_N_WF_FOLDS', 1)
+        print(f"     [ML Branch] Walk-Forward Evaluation over {n_folds} fold(s)...")
 
-        results_list = []
-        for h in range(1, Cfg.HORIZON + 1):
-            # ... (Same Batch Prediction Logic) ...
-            meta_h = meta_test.copy()
-            base_dates = pd.to_datetime(meta_test[:, 2])
-            shifted_dates = base_dates + pd.Timedelta(days=h-1)
-            meta_h[:, 2] = shifted_dates.strftime('%Y-%m-%d')
-            
-            X_df_h, _, _ = self._assemble_features(X_test, meta_h, df)
-            
-            if h in self.models:
-                y_log = self.models[h].predict(X_df_h)
-                bias = self.bias_log_h.get(h, 0.0)
-                y_pred = np.expm1(y_log - bias)
-            else:
-                y_pred = np.zeros(len(X_test))
-            
-            recent_mean = np.mean(X_test[:, -7:], axis=1)
-            max_allowed = np.minimum(self.global_cap * 1.2, np.maximum(1e-6, recent_mean) * 6.0)
-            y_pred = np.clip(y_pred, 0.0, max_allowed)
-            
-            y_true = Y_test[:, h-1]
-            error = y_true - y_pred # Positive if Under-forecast
-            
-            results_list.append(pd.DataFrame({
-                'store_id': meta_test[:, 0], 'product_id': meta_test[:, 1],
-                'horizon': h, 'date': shifted_dates,
-                'y_true': y_true, 'y_pred': y_pred, 'error': error,
-                'method': 'ml'
-            }))
-            
-        all_res = pd.concat(results_list, ignore_index=True)
-        metrics = self._calc_grouped_metrics(all_res)
-        
-        # Save Product Accuracy for ML subset
+        all_results = []
+        for fold_idx in range(n_folds):
+            # fold_idx=0 → most recent window (original test)
+            # fold_idx=k → window ending k*HORIZON days earlier
+            offset = fold_idx * Cfg.HORIZON
+            X_test, Y_test, meta_test = self._build_test_batch(df, offset=offset)
+            if len(X_test) == 0:
+                continue
+
+            for h in range(1, Cfg.HORIZON + 1):
+                meta_h = meta_test.copy()
+                base_dates = pd.to_datetime(meta_test[:, 2])
+                # Bug #6 fix: prediction for day h after anchor, so +h (not +h-1)
+                shifted_dates = base_dates + pd.Timedelta(days=h)
+                meta_h[:, 2] = shifted_dates.strftime('%Y-%m-%d')
+
+                X_df_h, _, _ = self._assemble_features(X_test, meta_h, df)
+
+                if h in self.models:
+                    y_log = self.models[h].predict(X_df_h)
+                    bias = self.bias_log_h.get(h, 0.0)
+                    y_pred = np.expm1(y_log - bias)
+                else:
+                    y_pred = np.zeros(len(X_test))
+
+                # Bug #4 fix: only floor at 0; no upper cap so evaluation is
+                # symmetric with baselines (SARIMA/ETS/SMA have no cap).
+                y_pred = np.clip(y_pred, 0.0, None)
+
+                y_true = Y_test[:, h - 1]
+                error  = y_true - y_pred
+
+                all_results.append(pd.DataFrame({
+                    'store_id':   meta_test[:, 0],
+                    'product_id': meta_test[:, 1],
+                    'horizon': h,
+                    'date':    shifted_dates,
+                    'y_true':  y_true,
+                    'y_pred':  y_pred,
+                    'error':   error,
+                    'method':  'ml',
+                    'fold':    fold_idx + 1,
+                }))
+
+        if not all_results:
+            return pd.DataFrame(), {}
+
+        all_res = pd.concat(all_results, ignore_index=True)
+        metrics  = self._calc_grouped_metrics(all_res)
         self._save_product_metrics(all_res, "ml_product_accuracy.csv")
-        
         return all_res, metrics
 
     def _generate_future_ml_batch(self, df):
@@ -476,20 +495,29 @@ class DemandForecaster:
             self.bias_log_h[h] = bias
             model_h.save_model(os.path.join(Cfg.OUT_DIR_FORECAST, f"lgb_direct_h{h}.txt"))
 
-    def _build_test_batch(self, df):
-        # ... (Identical to v4.4) ...
+    def _build_test_batch(self, df, offset=0):
+        """
+        Build a single-window test batch.
+        `offset` (days) shifts the window earlier for walk-forward evaluation:
+          offset=0  → last HORIZON days (most-recent, original behaviour)
+          offset=H  → one fold earlier, etc.
+        Bug #7 support: called once per fold by _evaluate_ml_batch.
+        """
         df_grouped = df.groupby(['store_id', 'product_id'])
         X_list, Y_list, meta_list = [], [], []
         for (store, prod), group in df_grouped:
             g = group.sort_values('dt')
             vals = g['y'].values; dates = g['dt'].values
             n = len(vals)
-            needed = Cfg.SEQ_LEN + Cfg.HORIZON
+            needed = Cfg.SEQ_LEN + Cfg.HORIZON + offset
             if n < needed: continue
-            truth_indices = slice(n - Cfg.HORIZON, n)
-            input_indices = slice(n - Cfg.HORIZON - Cfg.SEQ_LEN, n - Cfg.HORIZON)
-            y_truth = vals[truth_indices]; x_input = vals[input_indices]
-            anchor_date = dates[n - Cfg.HORIZON - 1] 
-            X_list.append(x_input); Y_list.append(y_truth); meta_list.append((store, prod, str(pd.to_datetime(anchor_date).date())))
+            end_idx     = n - offset
+            truth_indices = slice(end_idx - Cfg.HORIZON, end_idx)
+            input_indices = slice(end_idx - Cfg.HORIZON - Cfg.SEQ_LEN, end_idx - Cfg.HORIZON)
+            y_truth    = vals[truth_indices]
+            x_input    = vals[input_indices]
+            anchor_date = dates[end_idx - Cfg.HORIZON - 1]
+            X_list.append(x_input); Y_list.append(y_truth)
+            meta_list.append((store, prod, str(pd.to_datetime(anchor_date).date())))
         if not X_list: return np.array([]), np.array([]), np.array([])
         return np.stack(X_list), np.stack(Y_list), np.array(meta_list, dtype=object)

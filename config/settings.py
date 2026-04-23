@@ -153,3 +153,6 @@ class ProjectConfig:
     FC_MAX_SERIES_FOR_SARIMA = 1000 # 1000 series, per user request
     FC_PROPHET_CHANGEPOINT_SCALE = 0.05
     FC_COMPARISON_OUT_DIR = os.path.join(BASE_DIR, "data", "artifacts", "forecasting", "comparison")
+    # [FAIRNESS] Walk-forward folds: each fold evaluates 1 HORIZON window stepping back in time.
+    # 4 folds = 4x7=28 test days per series, giving a much more robust metric estimate.
+    FC_N_WF_FOLDS = 4
