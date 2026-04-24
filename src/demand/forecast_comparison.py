@@ -16,11 +16,23 @@ logger.setLevel(logging.CRITICAL)
 
 try:
     from pmdarima import auto_arima
+except ImportError:
+    print("Missing pmdarima. SARIMA will fail if called.")
+
+try:
     from statsmodels.tsa.holtwinters import ExponentialSmoothing
+except ImportError:
+    pass
+
+try:
     from prophet import Prophet
+except ImportError:
+    pass
+
+try:
     import lightgbm as lgb
-except ImportError as e:
-    print(f"Missing dependency for baseline comparison. Please install: {e}")
+except ImportError:
+    print("Missing lightgbm. LightGBM ablation will fail.")
 
 from config.settings import ProjectConfig as Cfg
 from src.demand.forecasting import DemandForecaster
@@ -126,9 +138,15 @@ class ForecastComparisonEngine:
                 f.write(header)
 
             for method_name, method_func in models:
-                total = len(test_samples)
+                # [Optimization] SARIMA is too slow, so we only evaluate it on the most recent fold (fold=1)
+                if method_name == 'SARIMA':
+                    method_samples = [s for s in test_samples if s.get('fold', 1) == 1]
+                else:
+                    method_samples = test_samples
+
+                total = len(method_samples)
                 done  = sum(
-                    1 for s in test_samples
+                    1 for s in method_samples
                     if f"{_clean_id(s['store_id'])}_{_clean_id(s['product_id'])}_{method_name}_f{s['fold']}"
                     in processed_keys
                 )
@@ -136,7 +154,7 @@ class ForecastComparisonEngine:
                     print(f"  -> [{method_name}] already completed. Skipping.")
                     continue
 
-                for sample in tqdm(test_samples, desc=f"Evaluating {method_name}"):
+                for sample in tqdm(method_samples, desc=f"Evaluating {method_name}"):
                     key = (f"{_clean_id(sample['store_id'])}_{_clean_id(sample['product_id'])}"
                            f"_{method_name}_f{sample['fold']}")
                     if key in processed_keys:
@@ -364,8 +382,10 @@ class ForecastComparisonEngine:
         if os.path.exists(ml_path):
             full_res = pd.read_parquet(ml_path)
             ml_test_res = full_res[full_res['method'] == 'ml'].copy()
-            ml_test_res = ml_test_res[['store_id', 'product_id', 'method',
-                                       'horizon', 'date', 'y_true', 'y_pred']]
+            cols_to_keep = ['store_id', 'product_id', 'method', 'horizon', 'date', 'y_true', 'y_pred']
+            if 'fold' in ml_test_res.columns:
+                cols_to_keep.append('fold')
+            ml_test_res = ml_test_res[cols_to_keep]
             ml_test_res['method'] = 'LightGBM (Proposed)'
             if 'fold' not in ml_test_res.columns:
                 ml_test_res['fold'] = 1
